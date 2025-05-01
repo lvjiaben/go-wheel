@@ -1,6 +1,8 @@
 package model
 
-import "github.com/lvjiaben/go-wheel/frame/global"
+import (
+	"github.com/lvjiaben/go-wheel/pkg/global"
+)
 
 type AdminAuthGroup struct {
 	Id        int    `json:"id" gorm:"column:id"`

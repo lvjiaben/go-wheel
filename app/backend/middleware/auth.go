@@ -6,14 +6,14 @@ import (
 
 	"github.com/lvjiaben/go-wheel/app/backend/service"
 
-	"github.com/lvjiaben/go-wheel/frame/global"
+	"github.com/lvjiaben/go-wheel/pkg/global"
 
 	"github.com/spf13/viper"
 
 	"github.com/lvjiaben/go-wheel/app/backend/model"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lvjiaben/go-wheel/utils/jwt"
+	"github.com/lvjiaben/go-wheel/pkg/jwt"
 )
 
 var authService = service.AuthService{}
