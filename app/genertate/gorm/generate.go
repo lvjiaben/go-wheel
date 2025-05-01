@@ -19,9 +19,14 @@ type Table struct {
 
 // Field 字段结构
 type Field struct {
-	Name    string
-	Type    string
-	Comment string
+	Field      string // 字段名
+	Type       string // 字段类型
+	Null       string // 是否可为空
+	Key        string // 键类型
+	Default    string // 默认值
+	Extra      string // 额外信息
+	Privileges string // 权限
+	Comment    string // 注释
 }
 
 // GetTables 获取表结构
@@ -51,8 +56,8 @@ func GetTables(db *gorm.DB, tableNames []string, dbName string) []Table {
 // GetFields 获取字段结构
 func GetFields(db *gorm.DB, tableName string) []Field {
 	var fields []Field
-	query := "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_NAME = ?"
-	rows, err := db.Raw(query, tableName).Rows()
+	query := "SHOW FULL COLUMNS FROM " + tableName
+	rows, err := db.Raw(query).Rows()
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +65,7 @@ func GetFields(db *gorm.DB, tableName string) []Field {
 
 	for rows.Next() {
 		var field Field
-		rows.Scan(&field.Name, &field.Type, &field.Comment)
+		rows.Scan(&field.Field, &field.Type, &field.Null, &field.Key, &field.Default, &field.Extra, &field.Privileges, &field.Comment)
 		fields = append(fields, field)
 	}
 	return fields
@@ -90,7 +95,7 @@ func GetFiledType(field Field) string {
 
 // GetFieldJson 获取字段json标签
 func GetFieldJson(field Field) string {
-	return fmt.Sprintf(`json:"%s" gorm:"column:%s"`, field.Name, field.Name)
+	return fmt.Sprintf(`json:"%s" gorm:"column:%s"`, field.Field, field.Field)
 }
 
 // GetFieldComment 获取字段注释
@@ -101,11 +106,18 @@ func GetFieldComment(field Field) string {
 	return ""
 }
 
+// GetFieldZh 获取字段中文名
+func GetFieldZh(field Field) string {
+	if field.Comment != "" {
+		return field.Comment
+	}
+	return actions.Marshal(field.Field)
+}
+
 // 初始化需要传入一个model
 func Genertate(TableName string, PackageName string, Path string, Cover bool) {
 	tableNames := strings.Split(TableName, ",")
 	initialize.ViperLoad()
-	initialize.MysqlLoad()
 	if global.DB != nil {
 		db, _ := global.DB.DB()
 		defer db.Close()
@@ -120,7 +132,6 @@ func Genertate(TableName string, PackageName string, Path string, Cover bool) {
 
 // 生成Model
 func generateModel(PackageName string, Path string, Cover bool, table Table, fields []Field) {
-
 	var builder strings.Builder
 	builder.WriteString("package " + PackageName + "\n\n")
 

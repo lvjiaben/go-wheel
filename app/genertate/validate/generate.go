@@ -3,26 +3,25 @@ package validate
 import (
 	"strings"
 
+	"github.com/lvjiaben/go-wheel/app/genertate/gorm"
+	"github.com/lvjiaben/go-wheel/pkg/actions"
 	"github.com/lvjiaben/go-wheel/pkg/global"
 	"github.com/lvjiaben/go-wheel/pkg/initialize"
 	"github.com/lvjiaben/go-wheel/pkg/utils/file"
-
-	"github.com/lvjiaben/go-wheel/pkg/actions"
 )
 
 // 初始化需要传入一个model
 func Genertate(TableName string, PackageName string, Path string, Cover bool) {
 	tableNames := strings.Split(TableName, ",")
 	initialize.ViperLoad()
-	initialize.MysqlLoad()
 	if global.DB != nil {
 		db, _ := global.DB.DB()
 		defer db.Close()
 	}
 	db := global.DB
-	tables := gorm2.GetTables(db, tableNames, global.CONFIG.Mysql.Dbname)
+	tables := gorm.GetTables(db, tableNames, global.CONFIG.Mysql.Dbname)
 	for _, table := range tables {
-		fields := gorm2.GetFields(db, table.Name)
+		fields := gorm.GetFields(db, table.Name)
 		generateValidate(PackageName, Path, Cover, table, fields)
 	}
 }
@@ -36,8 +35,7 @@ func getRequire(null string) string {
 }
 
 // 生成Model
-func generateValidate(PackageName string, Path string, Cover bool, table gorm2.Table, fields []gorm2.Field) {
-
+func generateValidate(PackageName string, Path string, Cover bool, table gorm.Table, fields []gorm.Field) {
 	var builder strings.Builder
 	builder.WriteString("package " + PackageName + "\n\n")
 	list := []string{"Create", "Update", "Delete", "Sort"}
@@ -49,12 +47,12 @@ func generateValidate(PackageName string, Path string, Cover bool, table gorm2.T
 				if item == "Create" && field.Key == "PRI" {
 					continue
 				}
-				builder.WriteString("\t" + actions.Marshal(fieldName) + "\t" + gorm2.GetFiledType(field) + "\t" +
-					"`" + "json:\"" + fieldName + "\" binding:\"" + getRequire(field.Null) + "\" msg:\"" + gorm2.GetFieldZh(field) + "有误\"" + "`\n")
+				builder.WriteString("\t" + actions.Marshal(fieldName) + "\t" + gorm.GetFiledType(field) + "\t" +
+					"`" + "json:\"" + fieldName + "\" binding:\"" + getRequire(field.Null) + "\" msg:\"" + gorm.GetFieldZh(field) + "有误\"" + "`\n")
 			}
 			if item == "Delete" && field.Key == "PRI" {
-				builder.WriteString("\t" + actions.Marshal(fieldName) + "\t" + gorm2.GetFiledType(field) + "\t" +
-					"`" + "json:\"" + fieldName + "\" binding:\"" + getRequire(field.Null) + "\" msg:\"" + gorm2.GetFieldZh(field) + "有误\"" + "`\n")
+				builder.WriteString("\t" + actions.Marshal(fieldName) + "\t" + gorm.GetFiledType(field) + "\t" +
+					"`" + "json:\"" + fieldName + "\" binding:\"" + getRequire(field.Null) + "\" msg:\"" + gorm.GetFieldZh(field) + "有误\"" + "`\n")
 			}
 		}
 		builder.WriteString("}\n\n")
