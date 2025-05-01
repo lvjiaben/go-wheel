@@ -1,0 +1,56 @@
+common:
+  success: Operation successful
+  error: Operation failed
+  not_found: Resource not found
+  unauthorized: Unauthorized
+  forbidden: Forbidden
+  bad_request: Bad request
+  server_error: Internal server error
+
+auth:
+  login_success: Login successful
+  login_failed: Invalid username or password
+  token_expired: Token expired
+  token_invalid: Invalid token
+  logout_success: Logout successful
+
+user:
+  create_success: User created successfully
+  create_failed: Failed to create user
+  update_success: User updated successfully
+  update_failed: Failed to update user
+  delete_success: User deleted successfully
+  delete_failed: Failed to delete user
+  not_found: User not found
+  username_exists: Username already exists
+  email_exists: Email already exists
+
+role:
+  create_success: Role created successfully
+  create_failed: Failed to create role
+  update_success: Role updated successfully
+  update_failed: Failed to update role
+  delete_success: Role deleted successfully
+  delete_failed: Failed to delete role
+  not_found: Role not found
+  name_exists: Role name already exists
+
+permission:
+  create_success: Permission created successfully
+  create_failed: Failed to create permission
+  update_success: Permission updated successfully
+  update_failed: Failed to update permission
+  delete_success: Permission deleted successfully
+  delete_failed: Failed to delete permission
+  not_found: Permission not found
+  name_exists: Permission name already exists
+
+menu:
+  create_success: Menu created successfully
+  create_failed: Failed to create menu
+  update_success: Menu updated successfully
+  update_failed: Failed to update menu
+  delete_success: Menu deleted successfully
+  delete_failed: Failed to delete menu
+  not_found: Menu not found
+  name_exists: Menu name already exists 

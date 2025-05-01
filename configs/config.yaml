@@ -1,0 +1,46 @@
+app:
+  name: "FrameWork"
+  mode: "debug"
+  port: 8081
+  version: "1.0.0"
+
+log:
+  level: "debug"
+  filename: "runtime.log"
+  max_size: 200
+  max_backups: 7
+  max_age: 30
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  pass: ""
+  dbname: "go-admin"
+  charset: "utf8mb4"
+  max_open_conns: 10
+  max_idle_conns: 10
+
+redis:
+  state: true
+  host: "127.0.0.1"
+  port: 6379
+  pass: ""
+  db: 0
+  pool_size: 100
+
+jwt:
+  secret: "go-admin-test"
+  expire_day: 7
+
+admin:
+  login_failures: 3
+  login_failures_second: 3600
+  login_sso: true
+
+nacos:
+  host: "127.0.0.1"
+  port: 8848
+  namespace: "public"
+  dataId: "go-admin"
+  group: "DEFAULT_GROUP"
