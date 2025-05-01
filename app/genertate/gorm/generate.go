@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/lvjiaben/go-wheel/pkg/actions"
-	"github.com/lvjiaben/go-wheel/pkg/file"
 	"github.com/lvjiaben/go-wheel/pkg/global"
 	"github.com/lvjiaben/go-wheel/pkg/initialize"
+	"github.com/lvjiaben/go-wheel/pkg/utils/file"
 	"gorm.io/gorm"
 )
 

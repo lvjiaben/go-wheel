@@ -5,9 +5,9 @@ import (
 
 	"github.com/lvjiaben/go-wheel/pkg/global"
 	"github.com/lvjiaben/go-wheel/pkg/initialize"
+	"github.com/lvjiaben/go-wheel/pkg/utils/file"
 
 	"github.com/lvjiaben/go-wheel/pkg/actions"
-	"github.com/lvjiaben/go-wheel/pkg/file"
 )
 
 // 初始化需要传入一个model
