@@ -2,7 +2,13 @@ package types
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/spf13/viper"
 )
 
 // Config 配置结构体
@@ -57,16 +63,8 @@ type Config struct {
 }
 
 // RedisClient Redis客户端接口
-type RedisClient interface {
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
-	Get(ctx context.Context, key string) (string, error)
-	Del(ctx context.Context, keys ...string) error
-	LPush(ctx context.Context, key string, values ...interface{}) error
-	BRPop(ctx context.Context, timeout time.Duration, keys ...string) ([]string, error)
-	ZAdd(ctx context.Context, key string, members ...interface{}) error
-	ZRangeByScore(ctx context.Context, key string, min, max string) ([]string, error)
-	ZRem(ctx context.Context, key string, members ...interface{}) error
-	Close() error
+type RedisClient struct {
+	*redis.Client
 }
 
 // Message 消息结构体
@@ -94,31 +92,115 @@ type Task struct {
 	NextTime time.Time
 }
 
+// I18n 国际化接口
+type I18n interface {
+	Get(key string, lang string) string
+	Set(key string, value string, lang string) error
+	LoadTranslations(dir string) error
+}
+
+// I18nManager 国际化管理器
+type I18nManager struct {
+	Translations map[string]map[string]string
+}
+
+func NewI18nManager() *I18nManager {
+	return &I18nManager{
+		Translations: make(map[string]map[string]string),
+	}
+}
+
+func (i *I18nManager) Get(key string, lang string) string {
+	// 检查映射是否存在对应语言
+	if translations, ok := i.Translations[lang]; ok {
+		if value, ok := translations[key]; ok {
+			return value
+		}
+	}
+
+	// 尝试切分语言代码，如zh-CN -> zh
+	langBase := strings.Split(lang, "-")[0]
+
+	// 尝试使用基础语言代码查找
+	for transLang, translations := range i.Translations {
+		// 如果找到基础语言代码匹配的语言
+		if strings.HasPrefix(transLang, langBase) {
+			if value, ok := translations[key]; ok {
+				return value
+			}
+			break
+		}
+	}
+
+	// 如果找不到，回退到默认语言（中文）
+	if lang != "zh-CN" && lang != "zh" {
+		if translations, ok := i.Translations["zh-CN"]; ok {
+			if value, ok := translations[key]; ok {
+				return value
+			}
+		}
+	}
+
+	// 都找不到，返回原键
+	return key
+}
+
+func (i *I18nManager) Set(key string, value string, lang string) error {
+	if _, ok := i.Translations[lang]; !ok {
+		i.Translations[lang] = make(map[string]string)
+	}
+	i.Translations[lang][key] = value
+	return nil
+}
+
+func (i *I18nManager) LoadTranslations(dir string) error {
+	// 获取目录下的所有 yaml 文件
+	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil {
+		return fmt.Errorf("获取语言文件失败: %v", err)
+	}
+
+	for _, file := range files {
+		// 获取语言代码（文件名）
+		lang := filepath.Base(file)
+		lang = lang[:len(lang)-5] // 去掉 .yaml 后缀
+
+		// 读取语言文件
+		v := viper.New()
+		v.SetConfigFile(file)
+		if err := v.ReadInConfig(); err != nil {
+			return fmt.Errorf("读取语言文件 %s 失败: %v", file, err)
+		}
+
+		// 加载翻译
+		translations := make(map[string]string)
+		for _, section := range v.AllKeys() {
+			value := v.GetString(section)
+			translations[section] = value
+		}
+		i.Translations[lang] = translations
+	}
+
+	return nil
+}
+
 // MessageQueue 消息队列接口
 type MessageQueue interface {
-	Publish(ctx context.Context, msg *Message) error
-	Subscribe(ctx context.Context, topic string, handler func(*Message)) error
+	Push(ctx context.Context, topic string, message interface{}) error
+	Pop(ctx context.Context, topic string) (interface{}, error)
 	Close() error
 }
 
 // DelayQueue 延迟队列接口
 type DelayQueue interface {
-	AddTask(ctx context.Context, task *DelayTask) error
-	Process(ctx context.Context, handler func(*DelayTask)) error
+	Push(ctx context.Context, topic string, message interface{}, delay time.Duration) error
+	Pop(ctx context.Context, topic string) (interface{}, error)
 	Close() error
 }
 
 // CronManager 定时任务管理器接口
 type CronManager interface {
-	AddTask(task *Task) error
-	RemoveTask(id string) error
+	AddJob(spec string, cmd func()) error
 	Start()
 	Stop()
-}
-
-// I18n 国际化接口
-type I18n interface {
-	LoadTranslations(dir string) error
-	Translate(lang, key string, args ...interface{}) string
-	GetAvailableLanguages() []string
 }

@@ -4,21 +4,29 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lvjiaben/go-wheel/app/backend/service"
-
-	"github.com/lvjiaben/go-wheel/pkg/global"
-
-	"github.com/spf13/viper"
-
-	"github.com/lvjiaben/go-wheel/app/backend/model"
-
 	"github.com/gin-gonic/gin"
+	"github.com/lvjiaben/go-wheel/app/backend/model"
+	"github.com/lvjiaben/go-wheel/app/backend/service"
+	"github.com/lvjiaben/go-wheel/pkg/container"
 	"github.com/lvjiaben/go-wheel/pkg/jwt"
 )
 
-var authService = service.AuthService{}
+// AuthMiddleware 认证中间件
+type AuthMiddleware struct {
+	container   *container.Container
+	authService *service.AuthService
+}
 
-func PermissionCheck() func(c *gin.Context) {
+// NewAuthMiddleware 创建认证中间件
+func NewAuthMiddleware(c *container.Container) *AuthMiddleware {
+	return &AuthMiddleware{
+		container:   c,
+		authService: service.NewAuthService(c),
+	}
+}
+
+// PermissionCheck 权限检查中间件
+func (m *AuthMiddleware) PermissionCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.GetInt("admin_id")
 		if userId <= 0 {
@@ -30,7 +38,7 @@ func PermissionCheck() func(c *gin.Context) {
 			return
 		}
 		path := c.Request.URL.Path
-		if authService.Check(path, userId) == false {
+		if !m.authService.CheckPermission(userId, path, c.Request.Method) {
 			c.JSON(http.StatusOK, gin.H{
 				"code":    401,
 				"message": "无权访问",
@@ -42,7 +50,8 @@ func PermissionCheck() func(c *gin.Context) {
 	}
 }
 
-func JWTAuthCheck() func(c *gin.Context) {
+// JWTAuthCheck JWT认证检查中间件
+func (m *AuthMiddleware) JWTAuthCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.Request.Header.Get("Authorization")
 		if authHeader == "" {
@@ -62,7 +71,7 @@ func JWTAuthCheck() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		mc, err := jwt.ParseToken(parts[1])
+		mc, err := jwt.ParseToken(parts[1], m.container.GetConfig().GetString("jwt.secret"))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"code":    401,
@@ -72,7 +81,7 @@ func JWTAuthCheck() func(c *gin.Context) {
 			return
 		}
 		var user model.Admin
-		if res := global.DB.First(&user, "id = ?", mc.ID); res.Error != nil {
+		if res := m.container.GetDB().First(&user, "id = ?", mc.Id); res.Error != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"code":    401,
 				"message": "请先登陆",
@@ -80,7 +89,7 @@ func JWTAuthCheck() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		if viper.GetBool("admin.login_sso") == true && user.Token != parts[1] {
+		if m.container.GetConfig().GetBool("admin.login_sso") && user.Token != parts[1] {
 			c.JSON(http.StatusOK, gin.H{
 				"code":    401,
 				"message": "登陆失效",

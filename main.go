@@ -2,28 +2,48 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"admin/pkg/container"
-	"admin/pkg/initialize"
-	"admin/pkg/middleware"
-	"admin/routes"
-
 	"github.com/gin-gonic/gin"
+	"github.com/lvjiaben/go-wheel/pkg/container"
+	"github.com/lvjiaben/go-wheel/pkg/initialize"
 	"go.uber.org/zap"
 )
 
 var (
 	configFile = flag.String("c", "configs/config.yaml", "配置文件路径")
 )
+
+// 检查端口是否可用
+func isPortAvailable(port int) bool {
+	addr := fmt.Sprintf(":%d", port)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	return true
+}
+
+// 查找下一个可用端口
+func findAvailablePort(startPort int) int {
+	port := startPort
+	for i := 0; i < 10; i++ { // 尝试10个端口
+		if isPortAvailable(port) {
+			return port
+		}
+		port++
+	}
+	return 0 // 没有找到可用端口
+}
 
 func main() {
 	flag.Parse()
@@ -33,88 +53,103 @@ func main() {
 		log.Fatalf("配置文件 %s 不存在", *configFile)
 	}
 
-	// 创建容器
-	container := container.NewContainer()
-	defer container.Shutdown()
+	// 初始化容器
+	c := container.NewContainer()
+	defer c.Shutdown()
 
 	// 初始化配置
-	config := initialize.InitConfig(*configFile)
-	container.SetConfig(config)
+	if err := initialize.ViperLoad(c); err != nil {
+		log.Fatalf("配置初始化失败: %v", err)
+	}
 
 	// 初始化日志
-	logger := initialize.ZapLoad()
-	defer logger.Sync()
-	logger.Debug("Logger init success")
-	container.SetLogger(logger)
+	if err := initialize.ZapLoad(c); err != nil {
+		log.Fatalf("日志初始化失败: %v", err)
+	}
+
+	c.GetLogger().Debug("Logger init success")
 
 	// 初始化数据库
-	db := initialize.InitDB()
-	if db != nil {
-		sqlDB, _ := db.DB()
-		defer sqlDB.Close()
-		container.SetDB(db)
+	if err := initialize.MysqlLoad(c); err != nil {
+		c.GetLogger().Error("数据库初始化失败", zap.Error(err))
+	} else {
+		db, _ := c.GetDB().DB()
+		defer db.Close()
 	}
 
 	// 初始化Redis
-	if config.Redis.State {
-		redis := initialize.RedisLoad()
-		defer redis.Close()
-		container.SetRedis(redis)
+	if c.GetConfig().Redis.State {
+		if err := initialize.RedisLoad(c); err != nil {
+			c.GetLogger().Error("Redis初始化失败", zap.Error(err))
+		}
 	}
 
 	// 初始化验证器
-	initialize.ValidateLoad()
+	if err := initialize.ValidateLoad(c); err != nil {
+		c.GetLogger().Error("验证器初始化失败", zap.Error(err))
+	}
 
 	// 初始化多语言
 	i18n := initialize.NewI18n()
-	if err := i18n.LoadTranslations("translations"); err != nil {
-		logger.Error("加载翻译文件失败", zap.Error(err))
+	if err := i18n.LoadTranslations("configs/i18n"); err != nil {
+		c.GetLogger().Error("加载语言文件失败", zap.Error(err))
 	}
-	container.SetI18n(i18n)
+	c.SetI18n(i18n)
 
 	// 初始化消息队列
 	mq := initialize.NewMessageQueue()
-	container.SetMessageQueue(mq)
+	c.SetMessageQueue(mq)
 
 	// 初始化延迟队列
 	dq := initialize.NewDelayQueue()
-	container.SetDelayQueue(dq)
+	c.SetDelayQueue(dq)
 
 	// 初始化定时任务
 	cron := initialize.NewCronManager()
 	cron.Start()
 	defer cron.Stop()
-	container.SetCron(cron)
+	c.SetCron(cron)
 
-	// 启动GIN
-	gin.SetMode(config.App.Mode)
-	r := gin.New()
-	r.Use(middleware.GinLogger(), middleware.GinRecovery(true))
+	// 设置gin模式
+	gin.SetMode(c.GetConfig().App.Mode)
 
-	// 注册路由
-	routes.RegisterRoutes(r, container)
+	// 初始化路由
+	router := initialize.RoutersLoad(c)
 
+	// 检查配置的端口是否可用，如果不可用则自动选择一个可用端口
+	port := c.GetConfig().App.Port
+	if !isPortAvailable(port) {
+		newPort := findAvailablePort(port + 1)
+		if newPort == 0 {
+			c.GetLogger().Fatal("无法找到可用端口")
+		}
+		c.GetLogger().Info("原端口被占用，切换到新端口", zap.Int("original_port", port), zap.Int("new_port", newPort))
+		port = newPort
+	}
+
+	// 启动服务器
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.App.Port),
-		Handler: r,
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: router,
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %s\n", err)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			c.GetLogger().Fatal("服务器启动失败", zap.Error(err))
 		}
 	}()
 
-	// 优雅退出
+	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Info("Shutdown Server ...")
+	c.GetLogger().Info("Shutdown Server ...")
 
+	// 设置超时时间
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server Shutdown", zap.Error(err))
+		c.GetLogger().Fatal("Server Shutdown", zap.Error(err))
 	}
-	logger.Info("Server exiting")
+	c.GetLogger().Info("Server exiting")
 }

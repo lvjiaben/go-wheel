@@ -1,92 +1,121 @@
 package service
 
 import (
+	"encoding/json"
+
 	"github.com/lvjiaben/go-wheel/app/backend/model"
-	"github.com/lvjiaben/go-wheel/pkg/actions"
-	"github.com/lvjiaben/go-wheel/pkg/global"
+	"github.com/lvjiaben/go-wheel/pkg/container"
+	"go.uber.org/zap"
 )
 
-type MenuService struct{}
-
 type Menu struct {
-	Component string  `json:"component"`
-	Meta      Meta    `json:"meta"`
-	Name      string  `json:"name"`
-	Path      string  `json:"path"`
-	Children  []*Menu `json:"children,omitempty"`
-	Id        int     `json:"id"`
-	Pid       int     `json:"pid"`
+	Id       int     `json:"id"`
+	Pid      int     `json:"pid"`
+	Name     string  `json:"name"`
+	Path     string  `json:"path"`
+	Icon     string  `json:"icon"`
+	Type     string  `json:"type"`
+	Children []*Menu `json:"children"`
 }
 
-type Meta struct {
-	Order      int    `json:"order,omitempty"`
-	Title      string `json:"title"`
-	HideInMenu bool   `json:"hideInMenu,omitempty"`
-	Icon       string `json:"icon,omitempty"`
+type MenuService struct {
+	container   *container.Container
+	authService *AuthService
 }
 
-func GetMenusFromDB(userId int, lang string) []*Menu {
-	service := AuthService{}
-	ruleIds := service.GetRuleIds(userId)
-	isSuper := false
-	for _, id := range ruleIds {
-		if id == "*" {
-			isSuper = true
-			break
+func NewMenuService(c *container.Container) *MenuService {
+	return &MenuService{
+		container:   c,
+		authService: NewAuthService(c),
+	}
+}
+
+func (m *MenuService) GetMenuList() ([]model.AdminAuthRule, error) {
+	var rules []model.AdminAuthRule
+	query := m.container.GetDB().Table((&model.AdminAuthRule{}).TableName()).Where("status = 1 AND type != ?", "button")
+	if err := query.Find(&rules).Error; err != nil {
+		m.container.GetLogger().Error("获取菜单列表失败", zap.Error(err))
+		return nil, err
+	}
+	return rules, nil
+}
+
+func (m *MenuService) GetMenusFromDB(userId int, lang string) []*Menu {
+	var user model.Admin
+	if err := m.container.GetDB().First(&user, "id = ?", userId).Error; err != nil {
+		m.container.GetLogger().Error("获取用户信息失败", zap.Error(err))
+		return nil
+	}
+
+	isSuper := m.authService.IsSuperAdmin(userId)
+	var ruleIds []int
+	if !isSuper {
+		var groupAccess model.AdminAuthGroupAccess
+		if err := m.container.GetDB().First(&groupAccess, "uid = ?", userId).Error; err != nil {
+			m.container.GetLogger().Error("获取用户角色失败", zap.Error(err))
+			return nil
+		}
+
+		var group model.AdminAuthGroup
+		if err := m.container.GetDB().First(&group, "id = ?", groupAccess.Gid).Error; err != nil {
+			m.container.GetLogger().Error("获取角色信息失败", zap.Error(err))
+			return nil
+		}
+
+		if err := json.Unmarshal([]byte(group.Rules), &ruleIds); err != nil {
+			m.container.GetLogger().Error("解析角色权限失败", zap.Error(err))
+			return nil
 		}
 	}
+
 	var authRules []model.AdminAuthRule
-	query := global.DB.Table((&model.AdminAuthRule{}).TableName()).Where("status = 1 AND type != ?", "button")
+	query := m.container.GetDB().Table((&model.AdminAuthRule{}).TableName()).Where("status = 1 AND type != ?", "button")
 	if !isSuper {
 		query = query.Where("id in (?)", ruleIds)
 	}
-	query.Find(&authRules)
-	// 转换 authRules 到 menus
-	menus := make([]Menu, len(authRules))
-	for i, rule := range authRules {
-		var title string
-		if lang == "zh" {
-			title = rule.Name
-		} else {
-			title = rule.Enname
-		}
-		var component = "BasicLayout"
-		if rule.Pid != 0 {
-			component = rule.Path
-		}
-		menus[i] = Menu{
-			Id:        rule.Id,
-			Pid:       rule.Pid,
-			Name:      title,
-			Path:      rule.Path,
-			Component: component,
-			Meta: Meta{
-				Title:      title,
-				Order:      rule.Sort,
-				Icon:       rule.Icon,
-				HideInMenu: actions.IntToBool(rule.Hide),
-			},
-		}
-	}
-	return BuildTree(menus)
-}
-
-func BuildTree(tmpArr []Menu) []*Menu {
-	result := make([]*Menu, 0)
-	menuMap := make(map[int]*Menu)
-
-	for i := range tmpArr {
-		menuMap[tmpArr[i].Id] = &tmpArr[i]
+	if err := query.Find(&authRules).Error; err != nil {
+		m.container.GetLogger().Error("获取菜单列表失败", zap.Error(err))
+		return nil
 	}
 
-	// 遍历映射并构建树
-	for _, menu := range menuMap {
-		if parent, exists := menuMap[menu.Pid]; exists {
-			parent.Children = append(parent.Children, menu)
-		} else {
-			result = append(result, menu)
+	var menus []*Menu
+	for _, rule := range authRules {
+		if lang != "zh-CN" {
+			rule.Name = rule.Enname
+		}
+		if rule.Pid == 0 {
+			menu := &Menu{
+				Id:       rule.Id,
+				Pid:      rule.Pid,
+				Name:     rule.Name,
+				Path:     rule.Path,
+				Icon:     rule.Icon,
+				Type:     rule.Type,
+				Children: make([]*Menu, 0),
+			}
+			menus = append(menus, menu)
 		}
 	}
 
-	return result
+	for _, menu := range menus {
+		for _, rule := range authRules {
+			if lang != "zh-CN" {
+				rule.Name = rule.Enname
+			}
+			if rule.Pid == menu.Id {
+				child := &Menu{
+					Id:       rule.Id,
+					Pid:      rule.Pid,
+					Name:     rule.Name,
+					Path:     rule.Path,
+					Icon:     rule.Icon,
+					Type:     rule.Type,
+					Children: make([]*Menu, 0),
+				}
+				menu.Children = append(menu.Children, child)
+			}
+		}
+	}
+
+	return menus
 }

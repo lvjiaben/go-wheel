@@ -1,28 +1,32 @@
 package routes
 
 import (
-	"admin/app/backend/controller"
-	"admin/app/backend/middleware"
-	"admin/pkg/container"
-
 	"github.com/gin-gonic/gin"
+	"github.com/lvjiaben/go-wheel/app/backend/controller"
+	backendMiddleware "github.com/lvjiaben/go-wheel/app/backend/middleware"
+	"github.com/lvjiaben/go-wheel/pkg/container"
+	globalMiddleware "github.com/lvjiaben/go-wheel/pkg/middleware"
 )
 
-func RegisterRoutes(r *gin.Engine, container *container.Container) {
-	r.GET("/", func(c *gin.Context) {
-		c.String(200, "Hello, Gin!")
-	})
-	//后端接口
-	backend := r.Group("/backend", middleware.SetLang())
+func RegisterRoutes(r *gin.Engine, c *container.Container) {
+	// 注册全局中间件
+	r.Use(globalMiddleware.I18nMiddleware(c))
+
+	// 创建控制器实例
+	authController := controller.NewAuthController(c)
+	authMiddleware := backendMiddleware.NewAuthMiddleware(c)
+
+	// 后端路由组
+	backend := r.Group("/backend")
 	{
-		// Auth控制器
+		// 认证路由组
 		auth := backend.Group("/auth")
 		{
-			authController := &controller.AuthController{}
 			auth.POST("/login", authController.Login)
-			auth.GET("/codes", middleware.JWTAuthCheck(), authController.Codes)
-			auth.GET("/menus", middleware.JWTAuthCheck(), authController.Menus)
-			auth.GET("/user", middleware.JWTAuthCheck(), authController.User)
+			auth.POST("/logout", authMiddleware.JWTAuthCheck(), authController.Logout)
+			auth.GET("/codes", authMiddleware.JWTAuthCheck(), authController.Codes)
+			auth.GET("/menus", authMiddleware.JWTAuthCheck(), authController.Menus)
+			auth.GET("/user", authMiddleware.JWTAuthCheck(), authController.User)
 		}
 	}
 }

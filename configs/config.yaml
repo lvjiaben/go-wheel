@@ -18,8 +18,10 @@ mysql:
   pass: ""
   dbname: "go-admin"
   charset: "utf8mb4"
-  max_open_conns: 10
-  max_idle_conns: 10
+  max_open_conns: 100
+  max_idle_conns: 20
+  max_lifetime: 3600    # 连接最大生命周期（秒）
+  max_idle_time: 1800   # 空闲连接最大生命周期（秒）
 
 redis:
   state: true
@@ -28,15 +30,45 @@ redis:
   pass: ""
   db: 0
   pool_size: 100
+  min_idle_conns: 10    # 最小空闲连接数
+  max_conn_age: 3600    # 连接最大生命周期（秒）
+  idle_timeout: 300     # 空闲连接超时（秒）
+  pool_timeout: 5       # 获取连接超时（秒）
+  read_timeout: 3       # 读取超时（秒）
+  write_timeout: 3      # 写入超时（秒）
+  enable_metrics: true  # 是否开启指标监控
+
+rabbitmq:
+  state: true           # 是否启用
+  host: "127.0.0.1"
+  port: 5672
+  virtual_host: "/"
+  user: "guest"
+  pass: "guest"
+  queue_name: "go-admin"           # 普通队列名称
+  delay_queue_name: "go-admin-delay" # 延迟队列名称
+  exchange: "go-admin-exchange"      # 普通交换机
+  delay_exchange: "go-admin-delay-exchange" # 延迟交换机
+  retry_count: 3                     # 重试次数
+  reconnect_interval: 5             # 重连间隔（秒）
+  heartbeat_interval: 30            # 心跳间隔（秒）
+  connection_timeout: 10            # 连接超时（秒）
+  enable_confirmation: true         # 是否开启发布确认
+  prefetch_count: 10                # 预取数量
+  prefetch_size: 0                  # 预取大小（0表示无限制）
+  default_consumer_name: "go-admin-consumer" # 默认消费者名称
 
 jwt:
   secret: "go-admin-test"
   expire_day: 7
+  issuer: "go-admin"
 
 admin:
   login_failures: 3
   login_failures_second: 3600
   login_sso: true
+  username: "admin"
+  password: "admin123"
 
 nacos:
   host: "127.0.0.1"

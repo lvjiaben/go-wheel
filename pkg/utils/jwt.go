@@ -1,4 +1,4 @@
-package jwt
+package utils
 
 import (
 	"errors"
@@ -15,22 +15,7 @@ type Claims struct {
 }
 
 // GenerateToken 生成JWT
-func GenerateToken(id int, secret string, expireDays int) (string, error) {
-	claims := Claims{
-		Id: id,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireDays) * 24 * time.Hour)), // 过期时间
-			IssuedAt:  jwt.NewNumericDate(time.Now()),                                                 // 签发时间
-			NotBefore: jwt.NewNumericDate(time.Now()),                                                 // 生效时间
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
-}
-
-// GenerateTokenWithUsername 带用户名的JWT生成（向后兼容）
-func GenerateTokenWithUsername(id int, username string, secret string) (string, error) {
+func GenerateToken(id int, username string, secret string) (string, error) {
 	claims := Claims{
 		Id:       id,
 		Username: username,

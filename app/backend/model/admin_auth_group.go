@@ -1,86 +1,117 @@
 package model
 
 import (
-	"github.com/lvjiaben/go-wheel/pkg/global"
+	"encoding/json"
+	"time"
+
+	"github.com/lvjiaben/go-wheel/pkg/container"
+	"go.uber.org/zap"
 )
 
+// AdminAuthGroup 角色表
 type AdminAuthGroup struct {
-	Id        int    `json:"id" gorm:"column:id"`
-	Pid       int    `json:"pid" gorm:"column:pid"`               // 父亲
-	Name      string `json:"name" gorm:"column:name"`             // 名称
-	Rules     string `json:"rules" gorm:"column:rules"`           // 规则
-	CreatedAt int    `json:"created_at" gorm:"column:created_at"` // 创建时间
-	UpdatedAt int    `json:"updated_at" gorm:"column:updated_at"` // 更新时间
+	Id        int    `json:"id" gorm:"primaryKey"`             // 主键ID
+	Pid       int    `json:"pid" gorm:"not null"`              // 上级角色ID
+	Name      string `json:"name" gorm:"not null"`             // 角色名称
+	Rules     string `json:"rules" gorm:"not null"`            // 角色权限
+	CreatedAt int    `json:"created_at" gorm:"autoCreateTime"` // 创建时间
+	UpdatedAt int    `json:"updated_at" gorm:"autoUpdateTime"` // 更新时间
 }
 
+// CustomAdminAuthGroup 自定义角色表
 type CustomAdminAuthGroup struct {
 	AdminAuthGroup
-	Children []CustomAdminAuthGroup `json:"children,omitempty"`
+	Children []*CustomAdminAuthGroup `json:"children"` // 子角色列表
 }
 
-func (e *AdminAuthGroup) TableName() string {
+func (AdminAuthGroup) TableName() string {
 	return "admin_auth_group"
 }
 
-func GetAssocList(query ...interface{}) []CustomAdminAuthGroup {
-	var list []AdminAuthGroup
-	if len(query) > 0 {
-		if err := global.DB.Find(&list, query...).Error; err != nil {
-			return nil
-		}
-	} else {
-		if err := global.DB.Find(&list).Error; err != nil {
-			return nil
-		}
+// GetRules 获取角色权限
+func (g *AdminAuthGroup) GetRules() ([]int, error) {
+	var rules []int
+	if err := json.Unmarshal([]byte(g.Rules), &rules); err != nil {
+		return nil, err
 	}
-	var rootList []CustomAdminAuthGroup
-	for _, item := range list {
-		if item.Pid == 0 {
-			newItem := CustomAdminAuthGroup{
-				AdminAuthGroup: item,
-				Children:       []CustomAdminAuthGroup{},
-			}
-			loadChildren(&newItem, &list)
-			rootList = append(rootList, newItem)
-		}
-	}
-	return rootList
+	return rules, nil
 }
 
-func loadChildren(parent *CustomAdminAuthGroup, categories *[]AdminAuthGroup) {
-	var children []CustomAdminAuthGroup
-	for i := 0; i < len(*categories); {
-		if (*categories)[i].Pid == parent.Id {
-			child := (*categories)[i]
-			childItem := CustomAdminAuthGroup{
-				AdminAuthGroup: child,
-				Children:       []CustomAdminAuthGroup{},
-			}
-			loadChildren(&childItem, categories)
-			children = append(children, childItem)
-			*categories = append((*categories)[:i], (*categories)[i+1:]...)
-		} else {
-			i++
-		}
+// SetRules 设置角色权限
+func (g *AdminAuthGroup) SetRules(rules []int) error {
+	data, err := json.Marshal(rules)
+	if err != nil {
+		return err
 	}
-	parent.Children = children
+	g.Rules = string(data)
+	return nil
 }
 
-func (e *AdminAuthGroup) GetChildrenIds(parentId *int, includeParentId bool, limitLevel int) ([]int, error) {
+// BeforeCreate 创建前的钩子
+func (g *AdminAuthGroup) BeforeCreate() error {
+	g.CreatedAt = int(time.Now().Unix())
+	g.UpdatedAt = int(time.Now().Unix())
+	return nil
+}
+
+// BeforeUpdate 更新前的钩子
+func (g *AdminAuthGroup) BeforeUpdate() error {
+	g.UpdatedAt = int(time.Now().Unix())
+	return nil
+}
+
+// GetAssocList 获取关联列表
+func GetAssocList(c *container.Container) []CustomAdminAuthGroup {
+	var groups []AdminAuthGroup
+	if err := c.GetDB().Find(&groups).Error; err != nil {
+		c.GetLogger().Error("获取角色列表失败", zap.Error(err))
+		return nil
+	}
+
+	// 构建树形结构
+	groupMap := make(map[int]*CustomAdminAuthGroup)
+	var result []CustomAdminAuthGroup
+
+	// 初始化map
+	for _, group := range groups {
+		customGroup := CustomAdminAuthGroup{
+			AdminAuthGroup: group,
+			Children:       make([]*CustomAdminAuthGroup, 0),
+		}
+		groupMap[group.Id] = &customGroup
+		if group.Pid == 0 {
+			result = append(result, customGroup)
+		}
+	}
+
+	// 建立父子关系
+	for _, group := range groups {
+		if group.Pid != 0 {
+			if parent, ok := groupMap[group.Pid]; ok {
+				customGroup := groupMap[group.Id]
+				parent.Children = append(parent.Children, customGroup)
+			}
+		}
+	}
+
+	return result
+}
+
+func (e *AdminAuthGroup) GetChildrenIds(c *container.Container, parentId *int, includeParentId bool, limitLevel int) ([]int, error) {
 	var ids []int
-	err := e.loadChildrenIds(parentId, includeParentId, limitLevel, 0, &ids)
+	err := e.loadChildrenIds(c, parentId, includeParentId, limitLevel, 0, &ids)
 	if err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
-func (e *AdminAuthGroup) loadChildrenIds(parentId *int, includeParentId bool, limitLevel int, currentLevel int, ids *[]int) error {
+func (e *AdminAuthGroup) loadChildrenIds(c *container.Container, parentId *int, includeParentId bool, limitLevel int, currentLevel int, ids *[]int) error {
 	if limitLevel != -1 && currentLevel > limitLevel {
 		return nil
 	}
 
-	query := global.DB
+	query := c.GetDB()
 	if parentId != nil {
 		query = query.Where("pid = ?", *parentId)
 	} else {
@@ -98,7 +129,7 @@ func (e *AdminAuthGroup) loadChildrenIds(parentId *int, includeParentId bool, li
 
 	for _, child := range children {
 		*ids = append(*ids, child.Id)
-		err := e.loadChildrenIds(&child.Id, includeParentId, limitLevel, currentLevel+1, ids)
+		err := e.loadChildrenIds(c, &child.Id, includeParentId, limitLevel, currentLevel+1, ids)
 		if err != nil {
 			return err
 		}
