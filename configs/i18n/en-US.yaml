@@ -1,56 +1,178 @@
 common:
   success: Operation successful
   error: Operation failed
-  not_found: Resource not found
-  unauthorized: Unauthorized
-  forbidden: Forbidden
-  bad_request: Bad request
+  fail: Operation failed
+  invalid_params: Please check, the parameters are incorrect
+  paramError: Please check, the parameters are incorrect
   server_error: Internal server error
 
-auth:
-  login_success: Login successful
-  login_failed: Invalid username or password
-  token_expired: Token expired
-  token_invalid: Invalid token
-  logout_success: Logout successful
+builder:
+  curd:
+    model_fields_empty: Model field list is empty, cannot validate
+    invalid_field: Field %s is not defined in the model
+    create_failed: Failed to create record
+    update_failed: Failed to update record
+    record_not_found: Record not found
+    query_record_failed: Failed to query record
+    query_updated_record_failed: Failed to query updated record
+    delete_failed: Failed to delete record
+    no_ids_to_delete: No IDs to delete
+    query_list_failed: Failed to query list
+    count_failed: Failed to count records
+    unsupported_data_type: Unsupported data type, only map[string]interface{} or model struct is supported
+    convert_failed: Data conversion failed
+    field_not_settable: Field is not settable
+    cannot_convert_to_int: Cannot convert type to integer
+    cannot_convert_string_to_int: Cannot convert string to integer
+    cannot_convert_to_type: Cannot convert type to target type
+    cannot_convert_to_bool: Cannot convert type to boolean
+    unsupported_field_type: Unsupported field type
 
-user:
-  create_success: User created successfully
-  create_failed: Failed to create user
-  update_success: User updated successfully
-  update_failed: Failed to update user
-  delete_success: User deleted successfully
-  delete_failed: Failed to delete user
-  not_found: User not found
-  username_exists: Username already exists
-  email_exists: Email already exists
+backend:
+  auth:
+    login_success: Login successful
+    login_failed: Invalid username or password
+    token_expired: Token expired
+    logout_success: Logout successful
+    unauthorized: Unauthorized access
+    forbidden: Access forbidden
+    invalid_token: Invalid access token
+    user_not_found: User not found or disabled
+    username: Username
+    password: Password
+    avatar: Avatar
+    email: Email
+    avatar_required: Please enter Avatar
+    email_required: Please enter Email
+    captcha: Verification code
+    username_required: Please enter username
+    password_required: Please enter password
+    captcha_required: Please enter verification code
+    captcha_invalid: Verification code error
 
-role:
-  create_success: Role created successfully
-  create_failed: Failed to create role
-  update_success: Role updated successfully
-  update_failed: Failed to update role
-  delete_success: Role deleted successfully
-  delete_failed: Failed to delete role
-  not_found: Role not found
-  name_exists: Role name already exists
+  role:
+    not_found: Role not found
+    name_exists: Role name already exists
+    create_failed: Failed to create role
+    update_failed: Failed to update role
+    delete_failed: Failed to delete role
+    assign_menus_failed: Failed to assign menus
+    id: Role ID
+    pid: Parent ID
+    name: Role name
+    description: Role description
+    is_super: Role type
+    status: Role status
+    sort: Sort order
+    menu_ids: Menu ID list
+    pid_invalid: Invalid parent ID
+    name_required: Please enter role name
+    is_super_invalid: Invalid role type
+    status_invalid: Invalid role status
+    sort_invalid: Invalid sort value
+    check_super_failed: Failed to check super admin
+    get_list_failed: Failed to get role list
+    get_detail_failed: Failed to get role details
+    check_name_failed: Failed to check role name
+    delete_role_menu_failed: Failed to delete role menu associations
+    delete_role_admin_failed: Failed to delete role admin associations
+    delete_old_menus_failed: Failed to delete old menu associations
+    parent_not_in_scope: Parent role is not in management scope
+    not_in_scope: Role is not in management scope
+    cannot_modify_own_role: Cannot modify your own direct role group
+    cannot_create_super_role: Regular admins cannot create super administrator roles
+    cannot_modify_super_role: Regular admins cannot modify super administrator roles
+    cannot_delete_own_role: Cannot delete your own direct role group
+    check_parent_failed: Failed to check parent role
+    check_scope_failed: Failed to check permission scope
 
-permission:
-  create_success: Permission created successfully
-  create_failed: Failed to create permission
-  update_success: Permission updated successfully
-  update_failed: Failed to update permission
-  delete_success: Permission deleted successfully
-  delete_failed: Failed to delete permission
-  not_found: Permission not found
-  name_exists: Permission name already exists
+  attachment:
+    no_file: Please select a file to upload
+    upload_failed: File upload failed
+    query_failed: Failed to query file
+    save_failed: Failed to save file record
 
-menu:
-  create_success: Menu created successfully
-  create_failed: Failed to create menu
-  update_success: Menu updated successfully
-  update_failed: Failed to update menu
-  delete_success: Menu deleted successfully
-  delete_failed: Failed to delete menu
-  not_found: Menu not found
-  name_exists: Menu name already exists 
+  admin:
+    not_found: Admin not found
+    username_exists: Username already exists
+    email_exists: Email already exists
+    create_failed: Failed to create admin
+    update_failed: Failed to update admin
+    delete_failed: Failed to delete admin
+    assign_roles_failed: Failed to assign roles
+    change_password_success: Password changed successfully
+    id: Admin ID
+    pid: Parent admin ID
+    username: Username
+    password: Password
+    realname: Real name
+    avatar: Avatar
+    email: Email
+    mobile: Mobile
+    status: Status
+    role_ids: Role ID list
+    pid_invalid: Invalid parent admin ID
+    username_required: Please enter username
+    password_required: Please enter password
+    email_invalid: Invalid email format
+    status_invalid: Invalid status
+    check_super_failed: Failed to check super admin
+    get_list_failed: Failed to get admin list
+    get_detail_failed: Failed to get admin details
+    check_username_failed: Failed to check username
+    check_email_failed: Failed to check email
+    has_subordinates: This admin has subordinate admins and cannot be deleted
+    check_subordinates_failed: Failed to check subordinate admins
+    delete_roles_failed: Failed to delete admin role associations
+    delete_old_roles_failed: Failed to delete old role associations
+    generate_salt_failed: Failed to generate salt
+    old_password_incorrect: Old password is incorrect
+    update_password_failed: Failed to update password
+    check_scope_failed: Failed to check permission scope
+    not_in_scope: Admin is not in management scope
+    cannot_modify_self: Cannot modify yourself
+    cannot_delete_self: Cannot delete yourself
+    role_not_in_scope: Role is not in permission scope
+    get_roles_failed: Failed to get roles
+
+  menu:
+    name_exists: Menu name already exists
+    enname_exists: English name already exists
+    id: Menu ID
+    pid: Parent ID
+    name: Menu name
+    enname: English name
+    route: Route path
+    component: Component path
+    path: Route path
+    icon: Icon
+    sort: Sort order
+    visible: Display status
+    fixed_tag: Fixed tag
+    show_tag: Show tag
+    iframe: iframe link
+    external: External link
+    type: Type
+    permission: Permission identifier
+    pid_invalid: Invalid parent ID
+    name_required: Please enter menu name
+    route_required: Please enter backend api route
+    path_required: Please enter frontend route path
+    enname_required: Please enter English name
+    component_required: Please enter component path
+    sort_invalid: Invalid sort value
+    visible_invalid: Invalid display status
+    fixed_tag_invalid: Invalid fixed tag
+    show_tag_invalid: Invalid show tag
+    iframe_invalid: Invalid iframe link
+    external_invalid: Invalid external link
+    type_required: Please select menu type
+    id_required: Menu ID cannot be empty
+    get_list_failed: Failed to get menu list
+    create_failed: Failed to create menu
+    update_failed: Failed to update menu
+    delete_failed: Failed to delete menu
+    delete_role_menu_failed: Failed to delete menu role associations
+    check_name_failed: Failed to check menu name
+    check_enname_failed: Failed to check English name
+    get_children_failed: Failed to get children menu

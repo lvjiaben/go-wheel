@@ -1,84 +1,72 @@
 package middleware
 
 import (
-	"fmt"
-	"net"
-	"net/http"
-	"net/http/httputil"
-	"os"
-	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lvjiaben/go-wheel/pkg/container"
 	"go.uber.org/zap"
 )
 
-func GinLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
+// GinLogger 自定义Gin日志中间件，使用Zap记录请求日志
+func GinLogger(c *container.Container) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
-		c.Next()
+		path := ctx.Request.URL.Path
+		query := ctx.Request.URL.RawQuery
+		method := ctx.Request.Method
+		ip := ctx.ClientIP()
 
+		ctx.Next()
+
+		// 请求结束后记录日志
 		cost := time.Since(start)
-		zap.L().Info(path,
-			zap.Int("status", c.Writer.Status()),
-			zap.String("method", c.Request.Method),
-			zap.String("path", path),
-			zap.String("query", query),
-			zap.String("ip", c.ClientIP()),
-			zap.String("user-agent", c.Request.UserAgent()),
-			zap.String("errors", c.Errors.ByType(gin.ErrorTypePrivate).String()),
-			zap.Duration("cost", cost),
-		)
+		status := ctx.Writer.Status()
+
+		// 根据状态码决定日志级别
+		if status >= 400 {
+			// 错误请求使用Error级别
+			c.GetLogger().Error("[GIN]",
+				zap.String("method", method),
+				zap.Int("status", status),
+				zap.Duration("cost", cost),
+				zap.String("ip", ip),
+				zap.String("path", path),
+				zap.String("query", query),
+				zap.String("error", ctx.Errors.String()),
+			)
+		} else {
+			// 正常请求使用Info级别
+			c.GetLogger().Info("[GIN]",
+				zap.String("method", method),
+				zap.Int("status", status),
+				zap.Duration("cost", cost),
+				zap.String("ip", ip),
+				zap.String("path", path),
+				zap.String("query", query),
+			)
+		}
 	}
 }
 
-// GinRecovery recover掉项目可能出现的panic，并使用zap记录相关日志
-func GinRecovery(stack bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
+// GinRecovery 自定义Gin恢复中间件，使用Zap记录panic信息
+func GinRecovery(c *container.Container) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				// Check for a broken connection, as it is not really a
-				// condition that warrants a panic stack trace.
-				var brokenPipe bool
-				if ne, ok := err.(*net.OpError); ok {
-					if se, ok := ne.Err.(*os.SyscallError); ok {
-						if strings.Contains(strings.ToLower(se.Error()), "broken pipe") || strings.Contains(strings.ToLower(se.Error()), "connection reset by peer") {
-							brokenPipe = true
-						}
-					}
-				}
+				// 获取请求信息（不包含查询参数，避免泄露敏感信息）
+				httpRequest := ctx.Request.Method + " " + ctx.Request.URL.Path
 
-				httpRequest, _ := httputil.DumpRequest(c.Request, false)
-				if brokenPipe {
-					zap.L().Error(c.Request.URL.Path,
-						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
-					)
-					// If the connection is dead, we can't write a status to it.
-					c.Error(err.(error)) // nolint: errcheck
-					c.Abort()
-					return
-				}
-
-				if stack {
-					zap.L().Error("[Recovery from panic]",
-						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
-						zap.String("stack", string(debug.Stack())),
-					)
-				} else {
-					zap.L().Error("[Recovery from panic]",
-						zap.Any("error", err),
-						zap.String("request", string(httpRequest)),
-					)
-				}
-				fmt.Println(err)
-				c.AbortWithStatus(http.StatusInternalServerError)
+				// 记录错误日志（不记录请求体，避免泄露密码等敏感信息）
+				c.GetLogger().Error("[Recovery] panic recovered",
+					zap.Any("error", err),
+					zap.String("request", httpRequest),
+					zap.String("ip", ctx.ClientIP()),
+				)
+				// 返回500错误
+				ctx.AbortWithStatus(500)
 			}
 		}()
-		c.Next()
+		ctx.Next()
 	}
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -12,141 +12,109 @@ import (
 	"syscall"
 	"time"
 
+	commonService "github.com/lvjiaben/go-wheel/app/common/service"
+	"github.com/lvjiaben/go-wheel/pkg/constants"
+	"github.com/lvjiaben/go-wheel/pkg/middleware"
+	"github.com/lvjiaben/go-wheel/pkg/monitor"
+	"github.com/lvjiaben/go-wheel/routes"
+
 	"github.com/gin-gonic/gin"
 	"github.com/lvjiaben/go-wheel/pkg/container"
-	"github.com/lvjiaben/go-wheel/pkg/initialize"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
-var (
-	configFile = flag.String("c", "configs/config.yaml", "配置文件路径")
-)
-
-// 检查端口是否可用
-func isPortAvailable(port int) bool {
-	addr := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
-}
-
-// 查找下一个可用端口
-func findAvailablePort(startPort int) int {
-	port := startPort
-	for i := 0; i < 10; i++ { // 尝试10个端口
-		if isPortAvailable(port) {
-			return port
-		}
-		port++
-	}
-	return 0 // 没有找到可用端口
-}
-
 func main() {
-	flag.Parse()
-
-	// 检查配置文件是否存在
-	if _, err := os.Stat(*configFile); os.IsNotExist(err) {
-		log.Fatalf("配置文件 %s 不存在", *configFile)
-	}
-
 	// 初始化容器
 	c := container.NewContainer()
 	defer c.Shutdown()
-
-	// 初始化配置
-	if err := initialize.ViperLoad(c); err != nil {
-		log.Fatalf("配置初始化失败: %v", err)
+	if err := c.Initialize(); err != nil {
+		log.Fatalf("初始化失败: %v", err)
 	}
 
-	// 初始化日志
-	if err := initialize.ZapLoad(c); err != nil {
-		log.Fatalf("日志初始化失败: %v", err)
-	}
+	// 启动配置缓存服务
+	configCache := commonService.NewConfigCacheService(c)
+	configCache.Start(constants.DefaultConfigCacheInterval)
+	defer configCache.Stop()
 
-	c.GetLogger().Debug("Logger init success")
+	c.GetLogger().Info("配置缓存服务已启动", zap.Duration("轮询间隔", constants.DefaultConfigCacheInterval))
 
-	// 初始化数据库
-	if err := initialize.MysqlLoad(c); err != nil {
-		c.GetLogger().Error("数据库初始化失败", zap.Error(err))
-	} else {
-		db, _ := c.GetDB().DB()
-		defer db.Close()
-	}
+	// 初始化 Prometheus 监控
+	prometheusMetrics := monitor.NewPrometheusMetrics(c, "goweb")
+	c.Set("prometheus_metrics", prometheusMetrics) // 存储到 container 供其他组件使用
+	c.GetLogger().Info("Prometheus 监控已初始化")
 
-	// 初始化Redis
-	if c.GetConfig().Redis.State {
-		if err := initialize.RedisLoad(c); err != nil {
-			c.GetLogger().Error("Redis初始化失败", zap.Error(err))
+	// 启动资源监控
+	resourceMonitor := monitor.NewResourceMonitor(c, constants.DefaultResourceMonitorInterval)
+	c.SetResourceMonitor(resourceMonitor)
+	c.TrackGoroutine()
+	go func() {
+		defer c.UntrackGoroutine()
+		resourceMonitor.Start()
+	}()
+	defer resourceMonitor.Stop()
+	c.GetLogger().Info("资源监控已启动", zap.Duration("收集间隔", constants.DefaultResourceMonitorInterval))
+
+	// 启动 Prometheus 指标收集
+	c.TrackGoroutine()
+	go func() {
+		defer c.UntrackGoroutine()
+		ticker := time.NewTicker(constants.DefaultPrometheusCollectInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.GetContext().Done():
+				return
+			case <-ticker.C:
+				prometheusMetrics.Collect()
+			}
 		}
-	}
+	}()
+	c.GetLogger().Info("Prometheus 指标收集已启动", zap.Duration("收集间隔", constants.DefaultPrometheusCollectInterval))
 
-	// 初始化验证器
-	if err := initialize.ValidateLoad(c); err != nil {
-		c.GetLogger().Error("验证器初始化失败", zap.Error(err))
-	}
-
-	// 初始化多语言
-	i18n := initialize.NewI18n()
-	if err := i18n.LoadTranslations("configs/i18n"); err != nil {
-		c.GetLogger().Error("加载语言文件失败", zap.Error(err))
-	}
-	c.SetI18n(i18n)
-
-	// 初始化消息队列
-	mq := initialize.NewMessageQueue()
-	c.SetMessageQueue(mq)
-
-	// 初始化延迟队列
-	dq := initialize.NewDelayQueue()
-	c.SetDelayQueue(dq)
-
-	// 初始化定时任务
-	cron := initialize.NewCronManager()
-	cron.Start()
-	defer cron.Stop()
-	c.SetCron(cron)
-
-	// 设置gin模式
+	// 注册gin
 	gin.SetMode(c.GetConfig().App.Mode)
+	r := gin.New()
+	// 使用自定义中间件 - 将日志输出到Zap
+	r.Use(middleware.GinLogger(c))
+	r.Use(middleware.GinRecovery(c))
+	// 使用请求体大小限制中间件
+	r.Use(middleware.RequestBodyLimitMiddleware(c))
+	// 使用 Prometheus 监控中间件
+	r.Use(middleware.PrometheusMiddleware(prometheusMetrics))
 
-	// 初始化路由
-	router := initialize.RoutersLoad(c)
+	// 注册 Prometheus metrics 端点
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	// 检查配置的端口是否可用，如果不可用则自动选择一个可用端口
-	port := c.GetConfig().App.Port
-	if !isPortAvailable(port) {
-		newPort := findAvailablePort(port + 1)
-		if newPort == 0 {
-			c.GetLogger().Fatal("无法找到可用端口")
-		}
-		c.GetLogger().Info("原端口被占用，切换到新端口", zap.Int("original_port", port), zap.Int("new_port", newPort))
-		port = newPort
+	// 注册路由
+	routes.RegisterRoutes(r, c)
+	// 检查配置的端口是否可用
+	addr := fmt.Sprintf(":%d", c.GetConfig().App.Port)
+	listener, err := net.Listen("tcp", addr)
+	listener.Close()
+	if err != nil {
+
+		log.Fatalf("程序端口被占用: %v", err)
 	}
 
 	// 启动服务器
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: router,
+		Addr:    addr,
+		Handler: r,
 	}
-
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			c.GetLogger().Fatal("服务器启动失败", zap.Error(err))
 		}
 	}()
-
-	// 等待中断信号
+	// 优雅关机，等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	c.GetLogger().Info("Shutdown Server ...")
 
 	// 设置超时时间
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.GracefulShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		c.GetLogger().Fatal("Server Shutdown", zap.Error(err))

@@ -3,21 +3,30 @@ package container
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/go-playground/locales/zh"
+	zh_translations "github.com/go-playground/validator/v10/translations/zh"
+
 	"github.com/fsnotify/fsnotify"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/lvjiaben/go-wheel/pkg/config"
+	"github.com/lvjiaben/go-wheel/pkg/constants"
 	"github.com/lvjiaben/go-wheel/pkg/types"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 type ComponentStatus struct {
@@ -28,23 +37,27 @@ type ComponentStatus struct {
 }
 
 type Container struct {
-	config     *config.Config
-	db         *gorm.DB
-	logger     *zap.Logger
-	redis      *types.RedisWrapper
-	i18n       types.I18n
-	messageQ   types.MessageQueue
-	delayQ     types.DelayQueue
-	cron       types.CronManager
-	validate   *validator.Validate
-	translator ut.Translator
-	mu         sync.RWMutex
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-	status     map[string]ComponentStatus
-	DB         *gorm.DB
-	RDB        *redis.Client
-	Config     *viper.Viper
+	config               *config.Config
+	db                   *gorm.DB
+	logger               *zap.Logger
+	redis                *types.RedisWrapper
+	i18n                 types.I18n
+	messageQ             types.MessageQueue
+	delayQ               types.DelayQueue
+	cron                 types.CronManager
+	validate             *validator.Validate
+	translator           ut.Translator
+	mu                   sync.RWMutex
+	ctx                  context.Context
+	cancelFunc           context.CancelFunc
+	status               map[string]ComponentStatus
+	cbMonitorStarted     sync.Once // 确保熔断器监控只启动一次
+	dbCBMonitorCancel    context.CancelFunc
+	redisCBMonitorCancel context.CancelFunc
+	resourceMonitor      interface{}            // 资源监控器（避免循环依赖，使用 interface{}）
+	customData           map[string]interface{} // 自定义数据存储（用于扩展）
+	activeTransactions   sync.WaitGroup         // 活跃事务计数器（用于优雅关闭）
+	goroutines           sync.WaitGroup         // Goroutine 计数器（用于等待所有 goroutine 退出）
 }
 
 // CircuitBreaker 熔断器
@@ -187,6 +200,7 @@ func NewContainer() *Container {
 		ctx:        ctx,
 		cancelFunc: cancel,
 		status:     make(map[string]ComponentStatus),
+		customData: make(map[string]interface{}),
 	}
 }
 
@@ -217,17 +231,22 @@ func (c *Container) Initialize() error {
 		return fmt.Errorf("国际化初始化失败: %v", err)
 	}
 
-	// 6. 消息队列初始化
+	// 6. 国际化初始化
+	if err := c.initializeValidate(); err != nil {
+		return fmt.Errorf("验证器初始化失败: %v", err)
+	}
+
+	// 7. 消息队列初始化
 	if err := c.initializeMessageQueue(); err != nil {
 		return fmt.Errorf("消息队列初始化失败: %v", err)
 	}
 
-	// 7. 延迟队列初始化
+	// 8. 延迟队列初始化
 	if err := c.initializeDelayQueue(); err != nil {
 		return fmt.Errorf("延迟队列初始化失败: %v", err)
 	}
 
-	// 8. 定时任务初始化
+	// 9. 定时任务初始化
 	if err := c.initializeCron(); err != nil {
 		return fmt.Errorf("定时任务初始化失败: %v", err)
 	}
@@ -438,17 +457,58 @@ func (c *Container) GetContext() context.Context {
 	return c.ctx
 }
 
-// SetContext 设置上下文
+// SetContext 设置上下文（已废弃，不建议使用）
+// Deprecated: 此方法不安全，可能导致容器生命周期管理混乱
+// 请使用 GetDBWithContext 或 GetDB().WithContext() 代替
 func (c *Container) SetContext(ctx context.Context) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.ctx = ctx
+	// 为了向后兼容保留此方法，但不做任何操作
+	// 原有的替换根 context 的行为是不安全的
+}
+
+// GetDBWithContext 获取带指定 context 的数据库连接（推荐使用）
+func (c *Container) GetDBWithContext(ctx context.Context) *gorm.DB {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.db == nil {
+		return nil
+	}
+	return c.db.WithContext(ctx)
 }
 
 // Shutdown 优雅关闭容器
-func (c *Container) Shutdown() error {
-	// 取消上下文
+func (c *Container) Shutdown() {
+	// 取消上下文（通知所有 goroutine 停止）
 	c.cancelFunc()
+
+	// 等待所有 goroutine 退出（设置超时避免无限等待）
+	done := make(chan struct{})
+	go func() {
+		c.goroutines.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if c.logger != nil {
+			c.logger.Info("所有 goroutine 已退出")
+		}
+	case <-time.After(5 * time.Second):
+		if c.logger != nil {
+			c.logger.Warn("等待 goroutine 退出超时，强制关闭")
+		}
+	}
+
+	// 停止熔断器监控 goroutine
+	if c.dbCBMonitorCancel != nil {
+		c.dbCBMonitorCancel()
+	}
+	if c.redisCBMonitorCancel != nil {
+		c.redisCBMonitorCancel()
+	}
+
+	// 加锁保护资源访问
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	// 关闭定时任务
 	if c.cron != nil {
@@ -458,21 +518,31 @@ func (c *Container) Shutdown() error {
 	// 关闭消息队列
 	if c.messageQ != nil {
 		if err := c.messageQ.Close(); err != nil {
-			c.logger.Error("关闭消息队列失败", zap.Error(err))
+			if c.logger != nil {
+				c.logger.Error("关闭消息队列失败", zap.Error(err))
+			}
 		}
 	}
 
 	// 关闭延迟队列
 	if c.delayQ != nil {
 		if err := c.delayQ.Close(); err != nil {
-			c.logger.Error("关闭延迟队列失败", zap.Error(err))
+			if c.logger != nil {
+				c.logger.Error("关闭延迟队列失败", zap.Error(err))
+			}
 		}
 	}
 
-	// 关闭Redis连接
-	if c.redis != nil && c.redis.Ping(c.ctx) == nil {
-		if err := c.redis.Close(); err != nil {
-			c.logger.Error("关闭Redis连接失败", zap.Error(err))
+	// 关闭Redis连接（使用新的 context 避免已取消的 context）
+	if c.redis != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if c.redis.Ping(ctx) == nil {
+			if err := c.redis.Close(); err != nil {
+				if c.logger != nil {
+					c.logger.Error("关闭Redis连接失败", zap.Error(err))
+				}
+			}
 		}
 	}
 
@@ -480,30 +550,91 @@ func (c *Container) Shutdown() error {
 	if c.db != nil {
 		sqlDB, err := c.db.DB()
 		if err != nil {
-			c.logger.Error("获取数据库连接失败", zap.Error(err))
+			if c.logger != nil {
+				c.logger.Error("获取数据库连接失败", zap.Error(err))
+			}
 		} else {
 			if err := sqlDB.Close(); err != nil {
-				c.logger.Error("关闭数据库连接失败", zap.Error(err))
+				if c.logger != nil {
+					c.logger.Error("关闭数据库连接失败", zap.Error(err))
+				}
 			}
 		}
 	}
 
-	return nil
 }
 
-// retry 重试机制
-func (c *Container) retry(operation func() error, maxRetries int, delay time.Duration) error {
+// retry 重试机制（指数退避策略）
+func (c *Container) retry(operation func() error, maxRetries int, initialDelay time.Duration) error {
 	var err error
+	delay := initialDelay
+	maxDelay := constants.DefaultMaxRetryDelay // 最大延迟时间
+
 	for i := 0; i < maxRetries; i++ {
 		if err = operation(); err == nil {
 			return nil
 		}
+
+		// 最后一次重试不需要等待
+		if i == maxRetries-1 {
+			break
+		}
+
+		if c.logger != nil {
+			c.logger.Warn("操作失败，准备重试",
+				zap.Int("retry", i+1),
+				zap.Int("max_retries", maxRetries),
+				zap.Duration("delay", delay),
+				zap.Error(err))
+		}
+
+		// 等待后重试
+		time.Sleep(delay)
+
+		// 指数退避：每次延迟时间翻倍，但不超过最大延迟
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
+
+	return fmt.Errorf("重试 %d 次后仍然失败: %v", maxRetries, err)
+}
+
+// retryWithJitter 带抖动的重试机制（避免惊群效应）
+func (c *Container) retryWithJitter(operation func() error, maxRetries int, initialDelay time.Duration) error {
+	var err error
+	delay := initialDelay
+	maxDelay := constants.DefaultMaxRetryDelay
+
+	for i := 0; i < maxRetries; i++ {
+		if err = operation(); err == nil {
+			return nil
+		}
+
+		if i == maxRetries-1 {
+			break
+		}
+
+		// 添加随机抖动（±25%）
+		jitter := time.Duration(float64(delay) * (0.75 + 0.5*rand.Float64()))
+
 		c.logger.Warn("操作失败，准备重试",
 			zap.Int("retry", i+1),
 			zap.Int("max_retries", maxRetries),
+			zap.Duration("base_delay", delay),
+			zap.Duration("jitter_delay", jitter),
 			zap.Error(err))
-		time.Sleep(delay)
+
+		time.Sleep(jitter)
+
+		// 指数退避
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
 	}
+
 	return fmt.Errorf("重试 %d 次后仍然失败: %v", maxRetries, err)
 }
 
@@ -599,49 +730,214 @@ func (c *Container) validateConfig(config *config.Config) error {
 	return nil
 }
 
-// reloadComponents 重新初始化受影响的组件
+// reloadComponents 重新初始化受影响的组件（平滑切换）
 func (c *Container) reloadComponents(config *config.Config) error {
-	// 重新初始化数据库连接
+	c.logger.Info("开始平滑重载组件...")
+
+	// 保存旧的连接以便后续关闭
+	c.mu.RLock()
+	oldDB := c.db
+	oldRedis := c.redis
+	oldMessageQ := c.messageQ
+	oldDelayQ := c.delayQ
+	c.mu.RUnlock()
+
+	// 重新初始化数据库连接（创建新连接）
 	if err := c.initializeDB(); err != nil {
+		c.logger.Error("重新初始化数据库失败", zap.Error(err))
 		return fmt.Errorf("重新初始化数据库失败: %v", err)
 	}
 
-	// 重新初始化Redis连接
+	// 重新初始化Redis连接（创建新连接）
 	if err := c.initializeRedis(); err != nil {
+		c.logger.Error("重新初始化Redis失败", zap.Error(err))
 		return fmt.Errorf("重新初始化Redis失败: %v", err)
 	}
 
-	// 重新初始化消息队列
+	// 重新初始化消息队列（创建新连接）
 	if err := c.initializeMessageQueue(); err != nil {
+		c.logger.Error("重新初始化消息队列失败", zap.Error(err))
 		return fmt.Errorf("重新初始化消息队列失败: %v", err)
 	}
 
-	// 重新初始化延迟队列
+	// 重新初始化延迟队列（创建新连接）
 	if err := c.initializeDelayQueue(); err != nil {
+		c.logger.Error("重新初始化延迟队列失败", zap.Error(err))
 		return fmt.Errorf("重新初始化延迟队列失败: %v", err)
 	}
+
+	// 延迟关闭旧连接，给正在使用的请求一些时间完成
+	go c.gracefulCloseOldConnections(oldDB, oldRedis, oldMessageQ, oldDelayQ)
 
 	// 重新初始化定时任务
 	if err := c.initializeCron(); err != nil {
 		return fmt.Errorf("重新初始化定时任务失败: %v", err)
 	}
 
+	c.logger.Info("组件平滑重载完成")
 	return nil
 }
 
-// initializeLogger 初始化日志
-func (c *Container) initializeLogger() error {
-	config := zap.NewProductionConfig()
-	config.OutputPaths = []string{"stdout"}
-	config.ErrorOutputPaths = []string{"stderr"}
+// gracefulCloseOldConnections 优雅关闭旧连接
+func (c *Container) gracefulCloseOldConnections(
+	oldDB *gorm.DB,
+	oldRedis *types.RedisWrapper,
+	oldMessageQ types.MessageQueue,
+	oldDelayQ types.DelayQueue,
+) {
+	// 等待所有活跃事务完成
+	c.logger.Info("等待所有活跃事务完成...")
+	done := make(chan struct{})
+	go func() {
+		c.activeTransactions.Wait()
+		close(done)
+	}()
 
-	logger, err := config.Build()
-	if err != nil {
-		return fmt.Errorf("创建日志器失败: %v", err)
+	// 设置超时，避免无限等待
+	gracePeriod := constants.DefaultGracePeriod
+	select {
+	case <-done:
+		c.logger.Info("所有活跃事务已完成")
+	case <-time.After(gracePeriod):
+		c.logger.Warn(fmt.Sprintf("等待超时（%v），强制关闭旧连接", gracePeriod))
 	}
 
+	// 关闭旧的数据库连接
+	if oldDB != nil {
+		if sqlDB, err := oldDB.DB(); err == nil {
+			if err := sqlDB.Close(); err != nil {
+				c.logger.Error("关闭旧数据库连接失败", zap.Error(err))
+			} else {
+				c.logger.Info("旧数据库连接已关闭")
+			}
+		}
+	}
+
+	// 关闭旧的 Redis 连接
+	if oldRedis != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if oldRedis.Ping(ctx) == nil {
+			if err := oldRedis.Close(); err != nil {
+				c.logger.Error("关闭旧Redis连接失败", zap.Error(err))
+			} else {
+				c.logger.Info("旧Redis连接已关闭")
+			}
+		}
+	}
+
+	// 关闭旧的消息队列
+	if oldMessageQ != nil {
+		if err := oldMessageQ.Close(); err != nil {
+			c.logger.Error("关闭旧消息队列失败", zap.Error(err))
+		} else {
+			c.logger.Info("旧消息队列已关闭")
+		}
+	}
+
+	// 关闭旧的延迟队列
+	if oldDelayQ != nil {
+		if err := oldDelayQ.Close(); err != nil {
+			c.logger.Error("关闭旧延迟队列失败", zap.Error(err))
+		} else {
+			c.logger.Info("旧延迟队列已关闭")
+		}
+	}
+
+	c.logger.Info("所有旧连接已优雅关闭")
+}
+
+// initializeLogger 初始化日志（支持日志轮转和分级）
+func (c *Container) initializeLogger() error {
+	logConfig := c.config.Log
+
+	// 解析日志级别
+	var level zapcore.Level
+	switch logConfig.Level {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "info":
+		level = zapcore.InfoLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
+	default:
+		level = zapcore.InfoLevel
+	}
+
+	// 配置日志轮转
+	writer := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   logConfig.Filename,   // 日志文件路径
+		MaxSize:    logConfig.MaxSize,    // 单个日志文件最大大小（MB）
+		MaxBackups: logConfig.MaxBackups, // 保留的旧日志文件最大数量
+		MaxAge:     logConfig.MaxAge,     // 保留旧日志文件的最大天数
+		Compress:   true,                 // 是否压缩旧日志文件
+	})
+
+	// 配置编码器
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+
+	// 创建核心
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(writer), zapcore.AddSync(os.Stdout)), // 同时输出到文件和控制台
+		level,
+	)
+
+	// 创建 logger
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+
 	c.SetLogger(logger)
+	c.logger.Info("日志系统已初始化",
+		zap.String("level", logConfig.Level),
+		zap.String("filename", logConfig.Filename),
+		zap.Int("max_size", logConfig.MaxSize),
+		zap.Int("max_backups", logConfig.MaxBackups),
+		zap.Int("max_age", logConfig.MaxAge))
+
 	return nil
+}
+
+// initializeValidate 初始化验证器
+func (c *Container) initializeValidate() error {
+	validate := validator.New()
+	zh := zh.New()
+	uni := ut.New(zh, zh)
+	trans, _ := uni.GetTranslator("zh")
+	if err := zh_translations.RegisterDefaultTranslations(validate, trans); err != nil {
+		return fmt.Errorf("注册验证器翻译失败: %v", err)
+	}
+	c.SetValidator(validate)
+	c.SetTranslator(trans)
+	return nil
+}
+
+// startCircuitBreakerMonitor 启动熔断器监控（带独立 context 管理）
+func (c *Container) startCircuitBreakerMonitor(cb *CircuitBreaker, name string) context.CancelFunc {
+	ctx, cancel := context.WithCancel(c.ctx)
+	ticker := time.NewTicker(constants.DefaultCircuitBreakerCheckInterval)
+
+	c.goroutines.Add(1) // 增加 goroutine 计数
+	go func() {
+		defer c.goroutines.Done() // goroutine 退出时减少计数
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				if c.logger != nil {
+					c.logger.Info(fmt.Sprintf("%s 熔断器监控已停止", name))
+				}
+				return
+			case <-ticker.C:
+				cb.Check()
+			}
+		}
+	}()
+
+	return cancel
 }
 
 // initializeDB 初始化数据库
@@ -651,22 +947,14 @@ func (c *Container) initializeDB() error {
 		return fmt.Errorf("配置未初始化")
 	}
 
-	// 创建熔断器
-	cb := NewCircuitBreaker(3, 30*time.Second)
+	// 停止旧的监控 goroutine（如果存在）
+	if c.dbCBMonitorCancel != nil {
+		c.dbCBMonitorCancel()
+	}
 
-	// 定期检查熔断器状态
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-c.ctx.Done():
-				return
-			case <-ticker.C:
-				cb.Check()
-			}
-		}
-	}()
+	// 创建熔断器并启动监控
+	cb := NewCircuitBreaker(constants.DefaultCircuitBreakerThreshold, constants.DefaultCircuitBreakerTimeout)
+	c.dbCBMonitorCancel = c.startCircuitBreakerMonitor(cb, "数据库")
 
 	return c.retry(func() error {
 		// 检查熔断器状态
@@ -684,7 +972,11 @@ func (c *Container) initializeDB() error {
 				config.Mysql.Charset,
 			)
 
-			db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+			db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+				NamingStrategy: schema.NamingStrategy{
+					SingularTable: true, // 使用单数表名
+				},
+			})
 			if err != nil {
 				c.GetLogger().Error("连接数据库失败", zap.Error(err))
 				return fmt.Errorf("连接数据库失败: %v", err)
@@ -703,7 +995,7 @@ func (c *Container) initializeDB() error {
 			c.SetDB(db)
 			return nil
 		})
-	}, 3, 5*time.Second)
+	}, constants.DefaultMaxRetries, constants.DefaultInitialDelay)
 }
 
 // initializeRedis 初始化Redis
@@ -717,22 +1009,14 @@ func (c *Container) initializeRedis() error {
 		return nil
 	}
 
-	// 创建熔断器
-	cb := NewCircuitBreaker(3, 30*time.Second)
+	// 停止旧的监控 goroutine（如果存在）
+	if c.redisCBMonitorCancel != nil {
+		c.redisCBMonitorCancel()
+	}
 
-	// 定期检查熔断器状态
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-c.ctx.Done():
-				return
-			case <-ticker.C:
-				cb.Check()
-			}
-		}
-	}()
+	// 创建熔断器并启动监控
+	cb := NewCircuitBreaker(constants.DefaultCircuitBreakerThreshold, constants.DefaultCircuitBreakerTimeout)
+	c.redisCBMonitorCancel = c.startCircuitBreakerMonitor(cb, "Redis")
 
 	return c.retry(func() error {
 		// 检查熔断器状态
@@ -748,7 +1032,7 @@ func (c *Container) initializeRedis() error {
 				PoolSize: config.Redis.PoolSize,
 			})
 
-			ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(c.ctx, constants.DefaultRedisTimeout)
 			defer cancel()
 
 			if err := client.Ping(ctx).Err(); err != nil {
@@ -759,7 +1043,7 @@ func (c *Container) initializeRedis() error {
 			c.SetRedis(&types.RedisWrapper{Client: client})
 			return nil
 		})
-	}, 3, 5*time.Second)
+	}, constants.DefaultMaxRetries, constants.DefaultInitialDelay)
 }
 
 // initializeI18n 初始化国际化
@@ -824,6 +1108,72 @@ func (c *Container) GetTranslator() ut.Translator {
 	return c.translator
 }
 
+// SetResourceMonitor 设置资源监控器
+func (c *Container) SetResourceMonitor(monitor interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resourceMonitor = monitor
+}
+
+// GetResourceMonitor 获取资源监控器
+func (c *Container) GetResourceMonitor() interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.resourceMonitor
+}
+
+// GetRDB 获取 Redis 客户端（线程安全）
 func (c *Container) GetRDB() *redis.Client {
-	return c.RDB
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.redis == nil {
+		return nil
+	}
+	return c.redis.Client
+}
+
+// Set 设置自定义数据
+func (c *Container) Set(key string, value interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.customData[key] = value
+}
+
+// Get 获取自定义数据
+func (c *Container) Get(key string) interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.customData[key]
+}
+
+// BeginTransaction 开始一个事务（增加活跃事务计数）
+// 使用示例：
+//
+//	defer c.EndTransaction()
+//	c.BeginTransaction()
+//	// 执行数据库操作...
+func (c *Container) BeginTransaction() {
+	c.activeTransactions.Add(1)
+}
+
+// EndTransaction 结束一个事务（减少活跃事务计数）
+func (c *Container) EndTransaction() {
+	c.activeTransactions.Done()
+}
+
+// TrackGoroutine 跟踪一个 goroutine（在启动 goroutine 前调用）
+// 使用示例：
+//
+//	c.TrackGoroutine()
+//	go func() {
+//	    defer c.UntrackGoroutine()
+//	    // goroutine 逻辑...
+//	}()
+func (c *Container) TrackGoroutine() {
+	c.goroutines.Add(1)
+}
+
+// UntrackGoroutine 取消跟踪一个 goroutine（在 goroutine 退出时调用）
+func (c *Container) UntrackGoroutine() {
+	c.goroutines.Done()
 }

@@ -4,57 +4,52 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-// Claims 自定义声明结构体
-type Claims struct {
+// CustomClaims 自定义JWT声明
+type CustomClaims struct {
 	Id       int    `json:"id"`
 	Username string `json:"username"`
 	jwt.RegisteredClaims
 }
 
-// GenerateToken 生成JWT
-func GenerateToken(id int, secret string, expireDays int) (string, error) {
-	claims := Claims{
-		Id: id,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireDays) * 24 * time.Hour)), // 过期时间
-			IssuedAt:  jwt.NewNumericDate(time.Now()),                                                 // 签发时间
-			NotBefore: jwt.NewNumericDate(time.Now()),                                                 // 生效时间
-		},
-	}
+// GenerateToken 生成JWT令牌
+func GenerateToken(id int, username string, secret string, expireDays int) (string, error) {
+	// 设置过期时间
+	expireTime := time.Now().Add(time.Hour * 24 * time.Duration(expireDays))
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
-}
-
-// GenerateTokenWithUsername 带用户名的JWT生成（向后兼容）
-func GenerateTokenWithUsername(id int, username string, secret string) (string, error) {
-	claims := Claims{
+	// 创建声明
+	claims := CustomClaims{
 		Id:       id,
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // 过期时间
-			IssuedAt:  jwt.NewNumericDate(time.Now()),                     // 签发时间
-			NotBefore: jwt.NewNumericDate(time.Now()),                     // 生效时间
+			ExpiresAt: jwt.NewNumericDate(expireTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
 	}
 
+	// 创建token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// 签名token
 	return token.SignedString([]byte(secret))
 }
 
-// ParseToken 解析JWT
-func ParseToken(tokenString string, secret string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+// ParseToken 解析JWT令牌
+func ParseToken(tokenString string, secret string) (*CustomClaims, error) {
+	// 解析token
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+	// 验证token
+	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
 		return claims, nil
 	}
 

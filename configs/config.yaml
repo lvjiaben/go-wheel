@@ -1,8 +1,9 @@
 app:
   name: "FrameWork"
   mode: "debug"
-  port: 8081
+  port: 8801
   version: "1.0.0"
+  max_request_body: 10  # 最大请求体大小（MB）
 
 log:
   level: "debug"
@@ -67,8 +68,6 @@ admin:
   login_failures: 3
   login_failures_second: 3600
   login_sso: true
-  username: "admin"
-  password: "admin123"
 
 nacos:
   host: "127.0.0.1"
@@ -76,3 +75,33 @@ nacos:
   namespace: "public"
   dataId: "go-admin"
   group: "DEFAULT_GROUP"
+
+# 文件上传配置
+upload:
+  type: "local"        # 存储类型：local, oss, qiniu, cos
+  base_url: "http://localhost:8801"  # 访问域名
+  upload_path: "/public/uploads"     # 上传路径
+  max_size: 10485760   # 最大文件大小(10MB)
+  allowed_types: ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain"]
+  allowed_extensions: ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt"]
+  
+  # 阿里云OSS配置
+  oss:
+    endpoint: ""
+    access_key_id: ""
+    access_key_secret: ""
+    bucket_name: ""
+
+  # 七牛云配置  
+  qiniu:
+    region: "华东"      # 存储区域
+    access_key: ""
+    secret_key: ""
+    bucket: ""
+
+  # 腾讯云COS配置
+  cos:
+    secret_id: ""
+    secret_key: ""
+    region: "ap-guangzhou"
+    bucket: ""          # bucket-appid 格式

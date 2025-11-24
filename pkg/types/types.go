@@ -3,12 +3,13 @@ package types
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 // Config 配置结构体
@@ -166,22 +167,50 @@ func (i *I18nManager) LoadTranslations(dir string) error {
 		lang = lang[:len(lang)-5] // 去掉 .yaml 后缀
 
 		// 读取语言文件
-		v := viper.New()
-		v.SetConfigFile(file)
-		if err := v.ReadInConfig(); err != nil {
+		data, err := os.ReadFile(file)
+		if err != nil {
 			return fmt.Errorf("读取语言文件 %s 失败: %v", file, err)
 		}
 
-		// 加载翻译
-		translations := make(map[string]string)
-		for _, section := range v.AllKeys() {
-			value := v.GetString(section)
-			translations[section] = value
+		// 使用yaml解析器处理文件
+		var nested map[string]interface{}
+		if err := yaml.Unmarshal(data, &nested); err != nil {
+			return fmt.Errorf("解析语言文件 %s 失败: %v", file, err)
 		}
+
+		// 将嵌套的结构扁平化
+		translations := make(map[string]string)
+		flattenMap("", nested, translations)
 		i.Translations[lang] = translations
 	}
 
 	return nil
+}
+
+// flattenMap 递归处理嵌套的map结构，将其扁平化为点分隔的键
+func flattenMap(prefix string, nested map[string]interface{}, result map[string]string) {
+	for k, v := range nested {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+
+		switch value := v.(type) {
+		case string:
+			result[key] = value
+		case map[string]interface{}:
+			flattenMap(key, value, result)
+		case map[interface{}]interface{}:
+			// 将map[interface{}]interface{}转换为map[string]interface{}
+			stringMap := make(map[string]interface{})
+			for mk, mv := range value {
+				if mkString, ok := mk.(string); ok {
+					stringMap[mkString] = mv
+				}
+			}
+			flattenMap(key, stringMap, result)
+		}
+	}
 }
 
 // MessageQueue 消息队列接口

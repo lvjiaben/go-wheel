@@ -10,14 +10,49 @@ type Config struct {
 	Admin    Admin    `mapstructure:"admin"`
 	Nacos    Nacos    `mapstructure:"nacos"`
 	RabbitMQ RabbitMQ `mapstructure:"rabbitmq"`
+	Upload   Upload   `mapstructure:"upload"`
+}
+
+type Upload struct {
+	Type              string      `mapstructure:"type"`
+	BaseUrl           string      `mapstructure:"base_url"`
+	UploadPath        string      `mapstructure:"upload_path"`
+	MaxSize           int64       `mapstructure:"max_size"`
+	AllowedTypes      []string    `mapstructure:"allowed_types"`
+	AllowedExtensions []string    `mapstructure:"allowed_extensions"`
+	Cos               CosConfig   `mapstructure:"cos"`
+	Oss               OssConfig   `mapstructure:"oss"`
+	Qiniu             QiniuConfig `mapstructure:"qiniu"`
+}
+
+type CosConfig struct {
+	SecretId  string `mapstructure:"secret_id"`
+	SecretKey string `mapstructure:"secret_key"`
+	Region    string `mapstructure:"region"`
+	Bucket    string `mapstructure:"bucket"`
+}
+
+type OssConfig struct {
+	Endpoint        string `mapstructure:"endpoint"`
+	AccessKeyID     string `mapstructure:"access_key_id"`
+	AccessKeySecret string `mapstructure:"access_key_secret"`
+	BucketName      string `mapstructure:"bucket_name"`
+}
+
+type QiniuConfig struct {
+	Region    string `mapstructure:"region"`
+	AccessKey string `mapstructure:"access_key"`
+	SecretKey string `mapstructure:"secret_key"`
+	Bucket    string `mapstructure:"bucket"`
 }
 
 // App 应用配置
 type App struct {
-	Name    string `mapstructure:"name"`
-	Port    int    `mapstructure:"port"`
-	Mode    string `mapstructure:"mode"`
-	Version string `mapstructure:"version"`
+	Name           string `mapstructure:"name"`
+	Port           int    `mapstructure:"port"`
+	Mode           string `mapstructure:"mode"`
+	Version        string `mapstructure:"version"`
+	MaxRequestBody int64  `mapstructure:"max_request_body"` // 最大请求体大小（MB）
 }
 
 // Mysql 数据库配置
@@ -85,7 +120,7 @@ type Log struct {
 // Jwt 配置
 type Jwt struct {
 	Secret string `mapstructure:"secret"`
-	Expire int    `mapstructure:"expire"`
+	Expire int    `mapstructure:"expire_day"`
 	Issuer string `mapstructure:"issuer"`
 }
 
@@ -121,6 +156,8 @@ func (c *Config) GetInt(key string) int {
 	switch key {
 	case "admin.login_failures":
 		return c.Admin.LoginFailures
+	case "jwt.expire_day":
+		return c.Jwt.Expire
 	default:
 		return 0
 	}

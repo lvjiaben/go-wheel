@@ -1,56 +1,178 @@
 common:
   success: 操作成功
   error: 操作失败
-  not_found: 资源不存在
-  unauthorized: 未授权
-  forbidden: 禁止访问
-  bad_request: 请求参数错误
+  fail: 操作失败
+  invalid_params: 请检查，参数有误
+  paramError: 请检查，参数有误
   server_error: 服务器内部错误
 
-auth:
-  login_success: 登录成功
-  login_failed: 用户名或密码错误
-  token_expired: 令牌已过期
-  token_invalid: 令牌无效
-  logout_success: 退出成功
+builder:
+  curd:
+    model_fields_empty: 模型字段列表为空，无法验证
+    invalid_field: 字段 %s 不在模型中定义
+    create_failed: 创建记录失败
+    update_failed: 更新记录失败
+    record_not_found: 记录不存在
+    query_record_failed: 查询记录失败
+    query_updated_record_failed: 查询更新后的记录失败
+    delete_failed: 删除记录失败
+    no_ids_to_delete: 没有要删除的ID
+    query_list_failed: 查询列表失败
+    count_failed: 查询总数失败
+    unsupported_data_type: 不支持的数据类型，仅支持 map[string]interface{} 或模型结构体
+    convert_failed: 数据转换失败
+    field_not_settable: 字段不可设置
+    cannot_convert_to_int: 无法将类型转换为整数
+    cannot_convert_string_to_int: 无法将字符串转换为整数
+    cannot_convert_to_type: 无法将类型转换为目标类型
+    cannot_convert_to_bool: 无法将类型转换为布尔值
+    unsupported_field_type: 不支持的字段类型
 
-user:
-  create_success: 创建用户成功
-  create_failed: 创建用户失败
-  update_success: 更新用户成功
-  update_failed: 更新用户失败
-  delete_success: 删除用户成功
-  delete_failed: 删除用户失败
-  not_found: 用户不存在
-  username_exists: 用户名已存在
-  email_exists: 邮箱已存在
+backend:
+  auth:
+    login_success: 登录成功
+    login_failed: 用户名或密码错误
+    token_expired: 令牌已过期
+    logout_success: 退出成功
+    unauthorized: 未授权访问
+    forbidden: 禁止访问
+    invalid_token: 无效的访问令牌
+    user_not_found: 用户不存在或已被禁用
+    username: 用户名
+    password: 密码
+    avatar: 头像
+    email: 邮箱
+    avatar_required: 请输入头像
+    email_required: 请输入邮箱
+    captcha: 验证码
+    username_required: 请输入用户名
+    password_required: 请输入密码
+    captcha_required: 请输入验证码
+    captcha_invalid: 验证码错误
 
-role:
-  create_success: 创建角色成功
-  create_failed: 创建角色失败
-  update_success: 更新角色成功
-  update_failed: 更新角色失败
-  delete_success: 删除角色成功
-  delete_failed: 删除角色失败
-  not_found: 角色不存在
-  name_exists: 角色名称已存在
+  role:
+    not_found: 角色不存在
+    name_exists: 角色名称已存在
+    create_failed: 创建角色失败
+    update_failed: 更新角色失败
+    delete_failed: 删除角色失败
+    assign_menus_failed: 分配菜单失败
+    id: 角色ID
+    pid: 父级ID
+    name: 角色名称
+    description: 角色描述
+    is_super: 角色类型
+    status: 角色状态
+    sort: 排序
+    menu_ids: 菜单ID列表
+    pid_invalid: 父级ID无效
+    name_required: 请输入角色名称
+    is_super_invalid: 角色类型无效
+    status_invalid: 角色状态无效
+    sort_invalid: 排序值无效
+    check_super_failed: 检查超级管理员失败
+    get_list_failed: 获取角色列表失败
+    get_detail_failed: 获取角色详情失败
+    check_name_failed: 检查角色名称失败
+    delete_role_menu_failed: 删除角色菜单关联失败
+    delete_role_admin_failed: 删除角色管理员关联失败
+    delete_old_menus_failed: 删除旧菜单关联失败
+    parent_not_in_scope: 上级角色不在管理范围内
+    not_in_scope: 角色不在管理范围内
+    cannot_modify_own_role: 不能修改自己的直属角色组
+    cannot_create_super_role: 普通管理员不能创建超级管理员角色
+    cannot_modify_super_role: 普通管理员不能修改超级管理员角色
+    cannot_delete_own_role: 不能删除自己的直属角色组
+    check_parent_failed: 检查父级角色失败
+    check_scope_failed: 检查权限范围失败
 
-permission:
-  create_success: 创建权限成功
-  create_failed: 创建权限失败
-  update_success: 更新权限成功
-  update_failed: 更新权限失败
-  delete_success: 删除权限成功
-  delete_failed: 删除权限失败
-  not_found: 权限不存在
-  name_exists: 权限名称已存在
+  attachment:
+    no_file: 请选择要上传的文件
+    upload_failed: 文件上传失败
+    query_failed: 查询文件失败
+    save_failed: 保存文件记录失败
 
-menu:
-  create_success: 创建菜单成功
-  create_failed: 创建菜单失败
-  update_success: 更新菜单成功
-  update_failed: 更新菜单失败
-  delete_success: 删除菜单成功
-  delete_failed: 删除菜单失败
-  not_found: 菜单不存在
-  name_exists: 菜单名称已存在 
+  admin:
+    not_found: 管理员不存在
+    username_exists: 用户名已存在
+    email_exists: 邮箱已存在
+    create_failed: 创建管理员失败
+    update_failed: 更新管理员失败
+    delete_failed: 删除管理员失败
+    assign_roles_failed: 分配角色失败
+    change_password_success: 修改密码成功
+    id: 管理员ID
+    pid: 上级管理员ID
+    username: 用户名
+    password: 密码
+    realname: 真实姓名
+    avatar: 头像
+    email: 邮箱
+    mobile: 手机号
+    status: 状态
+    role_ids: 角色ID列表
+    pid_invalid: 上级管理员ID无效
+    username_required: 请输入用户名
+    password_required: 请输入密码
+    email_invalid: 邮箱格式无效
+    status_invalid: 状态无效
+    check_super_failed: 检查超级管理员失败
+    get_list_failed: 获取管理员列表失败
+    get_detail_failed: 获取管理员详情失败
+    check_username_failed: 检查用户名失败
+    check_email_failed: 检查邮箱失败
+    has_subordinates: 该管理员下还有下级管理员，无法删除
+    check_subordinates_failed: 检查下级管理员失败
+    delete_roles_failed: 删除管理员角色关联失败
+    delete_old_roles_failed: 删除旧角色关联失败
+    generate_salt_failed: 生成盐值失败
+    old_password_incorrect: 旧密码不正确
+    update_password_failed: 更新密码失败
+    check_scope_failed: 检查权限范围失败
+    not_in_scope: 管理员不在管理范围内
+    cannot_modify_self: 不能修改自己
+    cannot_delete_self: 不能删除自己
+    role_not_in_scope: 角色不在权限范围内
+    get_roles_failed: 获取角色失败
+
+  menu:
+    name_exists: 菜单名称已存在
+    enname_exists: 英文名称已存在
+    id: 菜单ID
+    pid: 父级ID
+    name: 菜单名称
+    enname: 英文名称
+    route: 路由地址
+    component: 组件路径
+    path: 路由路径
+    icon: 图标
+    sort: 排序
+    visible: 显示状态
+    fixed_tag: 固定标签
+    show_tag: 显示标签
+    iframe: iframe链接
+    external: 外部链接
+    type: 类型
+    permission: 权限标识
+    pid_invalid: 父级ID无效
+    name_required: 请输入菜单名称
+    route_required: 请输入接口地址
+    path_required: 请输入前端路由路径
+    enname_required: 请输入英文名称
+    component_required: 请输入组件路径
+    sort_invalid: 排序值无效
+    visible_invalid: 显示状态无效
+    fixed_tag_invalid: 固定标签无效
+    show_tag_invalid: 显示标签无效
+    iframe_invalid: iframe链接无效
+    external_invalid: 外部链接无效
+    type_required: 请选择菜单类型
+    id_required: 菜单ID不能为空
+    get_list_failed: 获取菜单列表失败
+    create_failed: 创建菜单失败
+    update_failed: 更新菜单失败
+    delete_failed: 删除菜单失败
+    delete_role_menu_failed: 删除菜单角色关联失败
+    check_name_failed: 检查菜单名称失败
+    check_enname_failed: 检查英文名称失败
+    get_children_failed: 获取子菜单失败

@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lvjiaben/go-wheel/pkg/container"
-	"go.uber.org/zap"
 )
 
 // 用于在Container中保存Gin上下文的键
@@ -27,42 +27,39 @@ func I18nMiddleware(c *container.Container) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		// 从请求头获取语言
 		lang := ctx.GetHeader("Accept-Language")
-		if lang == "" {
-			lang = "zh-CN" // 默认中文
+		if lang != "" {
+			// 处理多种分隔符的情况
+			langs := strings.FieldsFunc(lang, func(r rune) bool {
+				return r == ',' || r == ' ' || r == ';'
+			})
+			if len(langs) > 0 {
+				// 取第一个语言代码，并移除质量值
+				lang = strings.Split(langs[0], ";")[0]
+			}
 		}
-
-		// 支持不同格式的语言代码
-		// 如果使用简写格式"zh"，转换为完整格式"zh-CN"
-		if lang == "zh" {
+		if lang == "" || lang == "zh" || lang == "zh-CN" || lang == "zh-cn" {
 			lang = "zh-CN"
-		} else if lang == "en" {
+		} else {
 			lang = "en-US"
 		}
 
-		// 记录检测到的语言
-		c.GetLogger().Debug("检测到的语言",
-			zap.String("accept-language", ctx.GetHeader("Accept-Language")),
-			zap.String("language", lang))
-
-		// 设置语言到上下文
+		// 设置语言到 Gin 上下文（推荐方式）
 		ctx.Set("lang", lang)
-
-		// 将gin上下文包装到Container的上下文中
-		c.SetContext(WithGinContext(c.GetContext(), ctx))
+		ctx.Set("isCn", lang == "zh-CN")
 
 		ctx.Next()
 	}
 }
 
-// Translate 翻译函数
-func Translate(c *container.Container, key string) string {
+// Translate 翻译函数（从 Gin Context 获取语言）
+func Translate(c *container.Container, ctx *gin.Context, key string) string {
 	lang := "zh-CN" // 默认中文
 
-	// 尝试从Container的上下文中获取Gin上下文
-	if ginCtx, ok := GinContextFromContext(c.GetContext()); ok && ginCtx != nil {
-		if l, exists := ginCtx.Get("lang"); exists {
-			if l, ok := l.(string); ok {
-				lang = l
+	// 从 Gin Context 获取语言设置
+	if ctx != nil {
+		if l, exists := ctx.Get("lang"); exists {
+			if langStr, ok := l.(string); ok {
+				lang = langStr
 			}
 		}
 	}
@@ -70,11 +67,13 @@ func Translate(c *container.Container, key string) string {
 	// 获取翻译结果
 	result := c.GetI18n().Get(key, lang)
 
-	// 记录翻译过程
-	c.GetLogger().Debug("翻译过程",
-		zap.String("key", key),
-		zap.String("lang", lang),
-		zap.String("result", result))
-
 	return result
+}
+
+// TranslateWithLang 翻译函数（直接指定语言）
+func TranslateWithLang(c *container.Container, key string, lang string) string {
+	if lang == "" {
+		lang = "zh-CN"
+	}
+	return c.GetI18n().Get(key, lang)
 }
