@@ -1,0 +1,7 @@
+*.lock
+/.idea
+runtime.log
+.DS_Store
+/.vscode
+/public
+touch
