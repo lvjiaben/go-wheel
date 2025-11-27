@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,13 +19,18 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/lvjiaben/go-wheel/pkg/config"
 	"github.com/lvjiaben/go-wheel/pkg/constants"
+	cronPkg "github.com/lvjiaben/go-wheel/pkg/cron"
+	"github.com/lvjiaben/go-wheel/pkg/httpclient"
+	queuePkg "github.com/lvjiaben/go-wheel/pkg/queue"
 	"github.com/lvjiaben/go-wheel/pkg/types"
+	wsPackage "github.com/lvjiaben/go-wheel/pkg/websocket"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -45,6 +51,9 @@ type Container struct {
 	messageQ             types.MessageQueue
 	delayQ               types.DelayQueue
 	cron                 types.CronManager
+	rabbitmq             *queuePkg.RabbitMQManager // RabbitMQ管理器
+	httpClient           *httpclient.Client        // HTTP客户端
+	wsHub                *wsPackage.Hub            // WebSocket Hub
 	validate             *validator.Validate
 	translator           ut.Translator
 	mu                   sync.RWMutex
@@ -251,6 +260,16 @@ func (c *Container) Initialize() error {
 		return fmt.Errorf("定时任务初始化失败: %v", err)
 	}
 
+	// 10. HTTP客户端初始化
+	if err := c.initializeHTTPClient(); err != nil {
+		return fmt.Errorf("HTTP客户端初始化失败: %v", err)
+	}
+
+	// 11. WebSocket Hub 初始化
+	if err := c.initializeWebSocketHub(); err != nil {
+		return fmt.Errorf("WebSocket Hub 初始化失败: %v", err)
+	}
+
 	return nil
 }
 
@@ -452,6 +471,30 @@ func (c *Container) GetCron() types.CronManager {
 	return c.cron
 }
 
+// GetRabbitMQ 获取RabbitMQ管理器
+func (c *Container) GetRabbitMQ() *queuePkg.RabbitMQManager {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.rabbitmq
+}
+
+// GetQueueHelper 获取队列辅助工具
+func (c *Container) GetQueueHelper() *queuePkg.QueueHelper {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.rabbitmq == nil {
+		return nil
+	}
+	return queuePkg.NewQueueHelper(c.rabbitmq)
+}
+
+// GetHTTPClient 获取HTTP客户端
+func (c *Container) GetHTTPClient() *httpclient.Client {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.httpClient
+}
+
 // GetContext 获取上下文
 func (c *Container) GetContext() context.Context {
 	return c.ctx
@@ -562,6 +605,18 @@ func (c *Container) Shutdown() {
 		}
 	}
 
+	// 关闭RabbitMQ连接
+	if c.rabbitmq != nil {
+		if err := c.rabbitmq.Close(); err != nil {
+			if c.logger != nil {
+				c.logger.Error("关闭RabbitMQ连接失败", zap.Error(err))
+			}
+		}
+	}
+
+	if c.logger != nil {
+		c.logger.Info("容器已关闭")
+	}
 }
 
 // retry 重试机制（指数退避策略）
@@ -704,16 +759,22 @@ func (c *Container) validateConfig(config *config.Config) error {
 	}
 
 	// 验证数据库配置
-	if config.Mysql.Host == "" {
+	if config.Database.Driver == "" {
+		return fmt.Errorf("数据库驱动不能为空")
+	}
+	if config.Database.Driver != "mysql" && config.Database.Driver != "postgres" && config.Database.Driver != "postgresql" {
+		return fmt.Errorf("不支持的数据库驱动: %s (支持: mysql, postgres)", config.Database.Driver)
+	}
+	if config.Database.Host == "" {
 		return fmt.Errorf("数据库主机不能为空")
 	}
-	if config.Mysql.Port <= 0 {
+	if config.Database.Port <= 0 {
 		return fmt.Errorf("数据库端口必须大于0")
 	}
-	if config.Mysql.User == "" {
+	if config.Database.User == "" {
 		return fmt.Errorf("数据库用户名不能为空")
 	}
-	if config.Mysql.Dbname == "" {
+	if config.Database.Dbname == "" {
 		return fmt.Errorf("数据库名称不能为空")
 	}
 
@@ -940,7 +1001,7 @@ func (c *Container) startCircuitBreakerMonitor(cb *CircuitBreaker, name string) 
 	return cancel
 }
 
-// initializeDB 初始化数据库
+// initializeDB 初始化数据库（支持 MySQL 和 PostgreSQL）
 func (c *Container) initializeDB() error {
 	config := c.GetConfig()
 	if config == nil {
@@ -963,36 +1024,89 @@ func (c *Container) initializeDB() error {
 		}
 
 		return cb.Execute(func() error {
-			dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local",
-				config.Mysql.User,
-				config.Mysql.Pass,
-				config.Mysql.Host,
-				config.Mysql.Port,
-				config.Mysql.Dbname,
-				config.Mysql.Charset,
-			)
+			var dialector gorm.Dialector
+			dbConfig := config.Database
 
-			db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+			// 根据驱动类型选择不同的 dialector
+			switch dbConfig.Driver {
+			case "mysql":
+				// URL 编码时区参数
+				timezone := dbConfig.Timezone
+				if timezone == "" {
+					timezone = "Local"
+				}
+
+				dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=%s",
+					dbConfig.User,
+					dbConfig.Pass,
+					dbConfig.Host,
+					dbConfig.Port,
+					dbConfig.Dbname,
+					dbConfig.Charset,
+					url.QueryEscape(timezone),
+				)
+				dialector = mysql.Open(dsn)
+				c.GetLogger().Info("使用 MySQL 数据库",
+					zap.String("host", dbConfig.Host),
+					zap.Int("port", dbConfig.Port),
+					zap.String("database", dbConfig.Dbname),
+					zap.String("timezone", timezone),
+				)
+
+			case "postgres", "postgresql":
+				dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+					dbConfig.Host,
+					dbConfig.User,
+					dbConfig.Pass,
+					dbConfig.Dbname,
+					dbConfig.Port,
+					dbConfig.SSLMode,
+					dbConfig.Timezone,
+				)
+				dialector = postgres.Open(dsn)
+				c.GetLogger().Info("使用 PostgreSQL 数据库",
+					zap.String("host", dbConfig.Host),
+					zap.Int("port", dbConfig.Port),
+					zap.String("database", dbConfig.Dbname),
+				)
+
+			default:
+				return fmt.Errorf("不支持的数据库驱动: %s (支持: mysql, postgres)", dbConfig.Driver)
+			}
+
+			// 打开数据库连接
+			db, err := gorm.Open(dialector, &gorm.Config{
 				NamingStrategy: schema.NamingStrategy{
 					SingularTable: true, // 使用单数表名
 				},
 			})
 			if err != nil {
-				c.GetLogger().Error("连接数据库失败", zap.Error(err))
+				c.GetLogger().Error("连接数据库失败",
+					zap.Error(err),
+					zap.String("driver", dbConfig.Driver),
+				)
 				return fmt.Errorf("连接数据库失败: %v", err)
 			}
 
+			// 获取底层 SQL DB
 			sqlDB, err := db.DB()
 			if err != nil {
 				c.GetLogger().Error("获取数据库连接失败", zap.Error(err))
 				return fmt.Errorf("获取数据库连接失败: %v", err)
 			}
 
-			sqlDB.SetMaxIdleConns(config.Mysql.MaxIdleConns)
-			sqlDB.SetMaxOpenConns(config.Mysql.MaxOpenConns)
-			sqlDB.SetConnMaxLifetime(time.Hour)
+			// 设置连接池参数
+			sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns)
+			sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns)
+			sqlDB.SetConnMaxLifetime(time.Duration(dbConfig.MaxLifetime) * time.Second)
+			sqlDB.SetConnMaxIdleTime(time.Duration(dbConfig.MaxIdleTime) * time.Second)
 
 			c.SetDB(db)
+			c.GetLogger().Info("数据库连接成功",
+				zap.String("driver", dbConfig.Driver),
+				zap.Int("max_open_conns", dbConfig.MaxOpenConns),
+				zap.Int("max_idle_conns", dbConfig.MaxIdleConns),
+			)
 			return nil
 		})
 	}, constants.DefaultMaxRetries, constants.DefaultInitialDelay)
@@ -1064,20 +1178,100 @@ func (c *Container) initializeI18n() error {
 
 // initializeMessageQueue 初始化消息队列
 func (c *Container) initializeMessageQueue() error {
-	// TODO: 实现消息队列初始化
+	config := c.GetConfig()
+	if config == nil {
+		return fmt.Errorf("配置未初始化")
+	}
+
+	if !config.RabbitMQ.State {
+		c.logger.Info("RabbitMQ未启用，跳过初始化")
+		return nil
+	}
+
+	mqConfig := &queuePkg.RabbitMQConfig{
+		Host:                config.RabbitMQ.Host,
+		Port:                config.RabbitMQ.Port,
+		VirtualHost:         config.RabbitMQ.VirtualHost,
+		User:                config.RabbitMQ.User,
+		Pass:                config.RabbitMQ.Pass,
+		QueueName:           config.RabbitMQ.QueueName,
+		DelayQueueName:      config.RabbitMQ.DelayQueueName,
+		Exchange:            config.RabbitMQ.Exchange,
+		DelayExchange:       config.RabbitMQ.DelayExchange,
+		RetryCount:          config.RabbitMQ.RetryCount,
+		ReconnectInterval:   config.RabbitMQ.ReconnectInterval,
+		HeartbeatInterval:   config.RabbitMQ.HeartbeatInterval,
+		ConnectionTimeout:   config.RabbitMQ.ConnectionTimeout,
+		EnableConfirmation:  config.RabbitMQ.EnableConfirmation,
+		PrefetchCount:       config.RabbitMQ.PrefetchCount,
+		PrefetchSize:        config.RabbitMQ.PrefetchSize,
+		DefaultConsumerName: config.RabbitMQ.DefaultConsumerName,
+	}
+
+	manager, err := queuePkg.NewRabbitMQManager(c.ctx, mqConfig, c.logger)
+	if err != nil {
+		return fmt.Errorf("初始化RabbitMQ失败: %v", err)
+	}
+
+	c.mu.Lock()
+	c.rabbitmq = manager
+	c.mu.Unlock()
+
+	c.logger.Info("RabbitMQ初始化成功")
 	return nil
 }
 
 // initializeDelayQueue 初始化延迟队列
 func (c *Container) initializeDelayQueue() error {
-	// TODO: 实现延迟队列初始化
+	// 延迟队列使用同一个RabbitMQ连接，不需要单独初始化
 	return nil
 }
 
 // initializeCron 初始化定时任务
 func (c *Container) initializeCron() error {
-	// TODO: 实现定时任务初始化
+	cronManager := cronPkg.NewCronManager(c.ctx, c.logger)
+	c.SetCron(cronManager)
+	c.logger.Info("定时任务管理器已初始化")
 	return nil
+}
+
+// initializeHTTPClient 初始化HTTP客户端
+func (c *Container) initializeHTTPClient() error {
+	// 创建适配器，将 zap.Logger 转换为 httpclient.Logger
+	loggerAdapter := &httpClientLoggerAdapter{logger: c.logger}
+
+	// 创建HTTP客户端
+	client := httpclient.NewClient(
+		httpclient.WithTimeout(30*time.Second),
+		httpclient.WithLogger(loggerAdapter),
+		httpclient.WithHeaders(map[string]string{
+			"User-Agent": "Go-Wheel/1.0",
+		}),
+	)
+
+	c.mu.Lock()
+	c.httpClient = client
+	c.mu.Unlock()
+
+	c.logger.Info("HTTP客户端已初始化")
+	return nil
+}
+
+// httpClientLoggerAdapter zap.Logger 适配器
+type httpClientLoggerAdapter struct {
+	logger *zap.Logger
+}
+
+func (a *httpClientLoggerAdapter) Debug(msg string, fields ...interface{}) {
+	a.logger.Sugar().Debugw(msg, fields...)
+}
+
+func (a *httpClientLoggerAdapter) Info(msg string, fields ...interface{}) {
+	a.logger.Sugar().Infow(msg, fields...)
+}
+
+func (a *httpClientLoggerAdapter) Error(msg string, fields ...interface{}) {
+	a.logger.Sugar().Errorw(msg, fields...)
 }
 
 // SetValidator 设置验证器
@@ -1176,4 +1370,27 @@ func (c *Container) TrackGoroutine() {
 // UntrackGoroutine 取消跟踪一个 goroutine（在 goroutine 退出时调用）
 func (c *Container) UntrackGoroutine() {
 	c.goroutines.Done()
+}
+
+// initializeWebSocketHub 初始化 WebSocket Hub
+func (c *Container) initializeWebSocketHub() error {
+	c.logger.Info("开始初始化 WebSocket Hub")
+
+	// 创建 WebSocket Hub
+	c.wsHub = wsPackage.NewHub(c.logger)
+
+	// 启动 Hub（在独立的 goroutine 中运行）
+	c.TrackGoroutine()
+	go func() {
+		defer c.UntrackGoroutine()
+		c.wsHub.Run()
+	}()
+
+	c.logger.Info("WebSocket Hub 初始化成功")
+	return nil
+}
+
+// GetWebSocketHub 获取 WebSocket Hub
+func (c *Container) GetWebSocketHub() *wsPackage.Hub {
+	return c.wsHub
 }

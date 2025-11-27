@@ -7,15 +7,16 @@ import (
 	"github.com/lvjiaben/go-wheel/app/backend/controller/admin"
 	"github.com/lvjiaben/go-wheel/app/backend/controller/system"
 	"github.com/lvjiaben/go-wheel/app/backend/controller/user"
-	"github.com/lvjiaben/go-wheel/app/backend/middleware"
+	backendMiddleware "github.com/lvjiaben/go-wheel/app/backend/middleware"
+	websocketController "github.com/lvjiaben/go-wheel/app/websocket/controller"
 	"github.com/lvjiaben/go-wheel/pkg/container"
-	globalMiddleware "github.com/lvjiaben/go-wheel/pkg/middleware"
+	"github.com/lvjiaben/go-wheel/pkg/middleware"
 )
 
 // RegisterRoutes 注册所有路由
 func RegisterRoutes(r *gin.Engine, c *container.Container) {
 	// 注册全局中间件
-	r.Use(globalMiddleware.I18nMiddleware(c))
+	r.Use(middleware.I18nMiddleware(c))
 
 	// 添加容器中间件，确保所有路由都能访问container
 	r.Use(middleware.ContainerMiddleware(c))
@@ -28,6 +29,9 @@ func RegisterRoutes(r *gin.Engine, c *container.Container) {
 
 	// 注册后台路由
 	registerBackendRoutes(r, c)
+
+	// 注册 WebSocket 路由
+	registerWebSocketRoutes(r, c)
 
 }
 
@@ -52,7 +56,7 @@ func registerBackendRoutes(r *gin.Engine, c *container.Container) {
 	authController := controller.NewAuthController(c)
 
 	// 获取中间件
-	authMiddleware := middleware.NewAuthMiddleware(c)
+	authMiddleware := backendMiddleware.NewAuthMiddleware(c)
 
 	// API分组
 	api := r.Group("/backend")
@@ -127,6 +131,17 @@ func registerBackendRoutes(r *gin.Engine, c *container.Container) {
 			systemGroup.POST("/config/create", configController.Create)
 			systemGroup.POST("/config/update", configController.Update)
 			systemGroup.DELETE("/config/delete/:id", configController.Delete)
+
+			// 代码生成
+			genController := system.NewGenController(c)
+			systemGroup.GET("/gen/table-list", genController.TableList)
+			systemGroup.GET("/gen/table-info", genController.TableInfo)
+			systemGroup.GET("/gen/table-config", genController.TableConfig)
+			systemGroup.POST("/gen/preview", genController.Preview)
+			systemGroup.POST("/gen/generate", genController.Generate)
+			systemGroup.GET("/gen/history", genController.History)
+			systemGroup.POST("/gen/delete", genController.Delete)
+			systemGroup.POST("/gen/download", genController.Download)
 		}
 
 		// 用户管理
@@ -141,6 +156,34 @@ func registerBackendRoutes(r *gin.Engine, c *container.Container) {
 			userGroup.POST("/update-score", userController.UpdateScore)
 			userGroup.POST("/operate", userController.Operate)
 		}
+
+		// 下方注释不要删除 为代码生成的预留位置
+		// region:backend-routes
+
+		// endregion:backend-routes
 	}
 
+}
+
+// registerWebSocketRoutes 注册 WebSocket 路由
+func registerWebSocketRoutes(r *gin.Engine, c *container.Container) {
+	// 获取 WebSocket Hub
+	wsHub := c.GetWebSocketHub()
+
+	// WebSocket 路由组（需要认证）
+	// 中间件执行顺序：
+	// 1. ContainerMiddleware - 注入容器
+	// 2. WebSocketAuthMiddleware - JWT 认证，设置 user_id 和 username 到上下文
+	// 3. WebSocketUpgradeMiddleware - 升级为 WebSocket，从上下文获取用户信息
+	ws := r.Group("/ws").Use(
+		middleware.ContainerMiddleware(c),
+		middleware.WebSocketAuthMiddleware(c),
+		middleware.WebSocketUpgradeMiddleware(wsHub),
+	)
+	{
+		pingController := websocketController.NewPingController(c, wsHub)
+		ws.GET("/ping",
+			pingController.Connect, // 控制器处理
+		)
+	}
 }

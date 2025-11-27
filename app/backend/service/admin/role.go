@@ -118,6 +118,10 @@ func (s *RoleService) Save(role *admin.Role, menuIds []int, ctx *gin.Context) er
 			return fmt.Errorf("backend.role.cannot_create_super_role")
 		}
 
+		if role.Pid == 0 {
+			return fmt.Errorf("backend.role.parent_not_in_scope")
+		}
+
 		// 检查父级角色是否存在且在当前管理员的管理范围内
 		if role.Pid > 0 {
 			if exists, err := s.authUtils.CheckRoleInAdminScope(role.Pid, adminId); err != nil {

@@ -54,13 +54,6 @@ type Config struct {
 		Username string
 		Password string
 	}
-	Nacos struct {
-		Host      string
-		Port      int
-		Namespace string
-		DataId    string
-		Group     string
-	}
 }
 
 // RedisClient Redis客户端接口
@@ -229,7 +222,12 @@ type DelayQueue interface {
 
 // CronManager 定时任务管理器接口
 type CronManager interface {
-	AddJob(spec string, cmd func()) error
+	AddJob(spec string, name string, cmd func()) error
+	AddJobWithContext(spec string, name string, cmd func(context.Context)) error
+	RemoveJob(name string)
 	Start()
 	Stop()
+	GetJobs() []string
+	GetJobCount() int
+	IsRunning() bool
 }

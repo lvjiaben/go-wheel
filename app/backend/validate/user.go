@@ -57,8 +57,8 @@ type UserUpdateScore struct {
 // UserOperate 操作用户字段（status等开关字段）
 type UserOperate struct {
 	Ids   []int  `json:"ids" binding:"required,dive,min=1" label:"用户ID列表"` // 批量ID（可选）
-	Field string `json:"field" binding:"required,oneof=status" label:"字段名"`
-	Value int8   `json:"value" binding:"oneof=0 1" label:"字段值"`
+	Field string `json:"field" binding:"required" label:"字段名"`
+	Value int    `json:"value" binding:"" label:"字段值"`
 }
 
 // UserDelete 删除
@@ -88,7 +88,7 @@ func ValidateUserUpdateScore(c *gin.Context) (*UserUpdateScore, bool) {
 
 // ValidateUserOperate 验证操作字段
 func ValidateUserOperate(c *gin.Context) (*UserOperate, bool) {
-	return validator.ValidateStruct[UserOperate](c)
+	return validator.ValidateStructWithConvert[UserOperate](c)
 }
 
 // ValidateUserDelete 验证删除

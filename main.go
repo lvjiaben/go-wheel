@@ -12,7 +12,11 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lvjiaben/go-wheel/app/cron"  // 导入任务包以触发 init()
+	_ "github.com/lvjiaben/go-wheel/app/queue" // 导入队列消费者包以触发 init()
 	commonService "github.com/lvjiaben/go-wheel/app/common/service"
+	cronPkg "github.com/lvjiaben/go-wheel/pkg/cron"
+	queuePkg "github.com/lvjiaben/go-wheel/pkg/queue"
 	"github.com/lvjiaben/go-wheel/pkg/constants"
 	"github.com/lvjiaben/go-wheel/pkg/middleware"
 	"github.com/lvjiaben/go-wheel/pkg/monitor"
@@ -23,6 +27,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
+
+
 
 func main() {
 	// 初始化容器
@@ -38,6 +44,20 @@ func main() {
 	defer configCache.Stop()
 
 	c.GetLogger().Info("配置缓存服务已启动", zap.Duration("轮询间隔", constants.DefaultConfigCacheInterval))
+
+	// 启动定时任务
+	if err := cronPkg.RegisterAllTasks(c.AsCronContainer()); err != nil {
+		log.Fatalf("注册定时任务失败: %v", err)
+	}
+	c.GetCron().Start()
+	defer c.GetCron().Stop()
+
+	// 启动消息队列消费者
+	if c.GetRabbitMQ() != nil {
+		if err := queuePkg.StartAllConsumers(c.AsQueueContainer(), c.GetRabbitMQ()); err != nil {
+			log.Fatalf("启动消息队列消费者失败: %v", err)
+		}
+	}
 
 	// 初始化 Prometheus 监控
 	prometheusMetrics := monitor.NewPrometheusMetrics(c, "goweb")

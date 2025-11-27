@@ -3,12 +3,11 @@ package config
 // Config 配置结构体
 type Config struct {
 	App      App      `mapstructure:"app"`
-	Mysql    Mysql    `mapstructure:"mysql"`
+	Database Database `mapstructure:"database"`
 	Redis    Redis    `mapstructure:"redis"`
 	Log      Log      `mapstructure:"log"`
 	Jwt      Jwt      `mapstructure:"jwt"`
 	Admin    Admin    `mapstructure:"admin"`
-	Nacos    Nacos    `mapstructure:"nacos"`
 	RabbitMQ RabbitMQ `mapstructure:"rabbitmq"`
 	Upload   Upload   `mapstructure:"upload"`
 }
@@ -55,18 +54,21 @@ type App struct {
 	MaxRequestBody int64  `mapstructure:"max_request_body"` // 最大请求体大小（MB）
 }
 
-// Mysql 数据库配置
-type Mysql struct {
-	Host         string `mapstructure:"host"`
-	Port         int    `mapstructure:"port"`
-	User         string `mapstructure:"user"`
-	Pass         string `mapstructure:"pass"`
-	Dbname       string `mapstructure:"dbname"`
-	Charset      string `mapstructure:"charset"`
-	MaxIdleConns int    `mapstructure:"max_idle_conns"`
-	MaxOpenConns int    `mapstructure:"max_open_conns"`
-	MaxLifetime  int    `mapstructure:"max_lifetime"`
-	MaxIdleTime  int    `mapstructure:"max_idle_time"`
+// Database 数据库配置（支持 MySQL 和 PostgreSQL）
+type Database struct {
+	Driver       string `mapstructure:"driver"`        // 数据库驱动：mysql 或 postgres
+	Host         string `mapstructure:"host"`          // 主机地址
+	Port         int    `mapstructure:"port"`          // 端口号
+	User         string `mapstructure:"user"`          // 用户名
+	Pass         string `mapstructure:"pass"`          // 密码
+	Dbname       string `mapstructure:"dbname"`        // 数据库名
+	Charset      string `mapstructure:"charset"`       // 字符集（仅 MySQL）
+	SSLMode      string `mapstructure:"sslmode"`       // SSL 模式（仅 PostgreSQL）
+	Timezone     string `mapstructure:"timezone"`      // 时区
+	MaxIdleConns int    `mapstructure:"max_idle_conns"` // 最大空闲连接数
+	MaxOpenConns int    `mapstructure:"max_open_conns"` // 最大打开连接数
+	MaxLifetime  int    `mapstructure:"max_lifetime"`   // 连接最大生命周期（秒）
+	MaxIdleTime  int    `mapstructure:"max_idle_time"`  // 空闲连接最大生命周期（秒）
 }
 
 // Redis 配置
@@ -130,15 +132,6 @@ type Admin struct {
 	LoginSso      bool   `mapstructure:"login_sso"`
 	Username      string `mapstructure:"username"`
 	Password      string `mapstructure:"password"`
-}
-
-// Nacos 配置
-type Nacos struct {
-	Host      string `mapstructure:"host"`
-	Port      int    `mapstructure:"port"`
-	Namespace string `mapstructure:"namespace"`
-	DataId    string `mapstructure:"data_id"`
-	Group     string `mapstructure:"group"`
 }
 
 // GetString 获取字符串配置

@@ -27,6 +27,11 @@ func (r *RedisWrapper) Set(ctx context.Context, key string, value interface{}, e
 	return r.Client.Set(ctx, key, value, expiration).Err()
 }
 
+// SetNX 设置键值对（仅当键不存在时）用于分布式锁
+func (r *RedisWrapper) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
+	return r.Client.SetNX(ctx, key, value, expiration).Result()
+}
+
 // Get 获取值
 func (r *RedisWrapper) Get(ctx context.Context, key string) (string, error) {
 	return r.Client.Get(ctx, key).Result()

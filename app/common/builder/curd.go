@@ -442,7 +442,7 @@ func (b *CRUDBuilder[T]) listFilter(db *gorm.DB, query *ListApi) *gorm.DB {
 
 		for _, field := range b.searchFields {
 			if datatype.Contains(b.validFields, field) {
-				conditions = append(conditions, field+" LIKE ?")
+				conditions = append(conditions, "`"+field+"` LIKE ?")
 				args = append(args, "%"+query.Search+"%")
 			}
 		}

@@ -25,6 +25,7 @@ func NewIndexController(c *container.Container) *IndexController {
 
 // Index 首页方法
 func (c *IndexController) Index(ctx *gin.Context) {
+
 	// 准备模板数据
 	data := gin.H{
 		"title":       "欢迎页面",

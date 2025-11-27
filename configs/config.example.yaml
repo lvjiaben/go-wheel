@@ -1,0 +1,140 @@
+app:
+  name: "FrameWork"
+  mode: "debug"           # debug, release, test
+  port: 8801
+  version: "1.0.0"
+  max_request_body: 10    # 最大请求体大小（MB）
+
+log:
+  level: "debug"          # debug, info, warn, error
+  filename: "runtime.log"
+  max_size: 200           # 单个日志文件最大大小（MB）
+  max_backups: 7          # 保留的旧日志文件数量
+  max_age: 30             # 保留旧日志文件的最大天数
+
+# ==================== 数据库配置 ====================
+# 支持 MySQL 和 PostgreSQL
+# 只需修改 driver 字段即可切换数据库类型
+
+# MySQL 配置示例
+database:
+  driver: "mysql"         # 数据库驱动：mysql 或 postgres
+  host: "127.0.0.1"
+  port: 3306              # MySQL 默认端口
+  user: "root"
+  pass: ""                # 数据库密码
+  dbname: "go-admin"
+  charset: "utf8mb4"      # 仅 MySQL 使用
+  timezone: "Asia/Shanghai"
+  max_open_conns: 100
+  max_idle_conns: 20
+  max_lifetime: 3600      # 连接最大生命周期（秒）
+  max_idle_time: 1800     # 空闲连接最大生命周期（秒）
+
+# PostgreSQL 配置示例（取消注释以使用）
+# database:
+#   driver: "postgres"    # 或 postgresql
+#   host: "127.0.0.1"
+#   port: 5432            # PostgreSQL 默认端口
+#   user: "postgres"
+#   pass: ""
+#   dbname: "go-admin"
+#   sslmode: "disable"    # disable, require, verify-ca, verify-full
+#   timezone: "Asia/Shanghai"
+#   max_open_conns: 100
+#   max_idle_conns: 20
+#   max_lifetime: 3600
+#   max_idle_time: 1800
+
+# ==================== Redis 配置 ====================
+redis:
+  state: true             # 是否启用 Redis
+  host: "127.0.0.1"
+  port: 6379
+  pass: ""                # Redis 密码
+  db: 0                   # 数据库编号
+  pool_size: 100          # 连接池大小
+  min_idle_conns: 10      # 最小空闲连接数
+  max_conn_age: 3600      # 连接最大生命周期（秒）
+  idle_timeout: 300       # 空闲连接超时（秒）
+  pool_timeout: 5         # 获取连接超时（秒）
+  read_timeout: 3         # 读取超时（秒）
+  write_timeout: 3        # 写入超时（秒）
+  enable_metrics: true    # 是否开启指标监控
+
+# ==================== RabbitMQ 配置 ====================
+rabbitmq:
+  state: true             # 是否启用 RabbitMQ
+  host: "127.0.0.1"
+  port: 5672
+  virtual_host: "/"
+  user: "guest"
+  pass: "guest"
+  queue_name: "go-admin"                    # 普通队列名称
+  delay_queue_name: "go-admin-delay"        # 延迟队列名称
+  exchange: "go-admin-exchange"             # 普通交换机
+  delay_exchange: "go-admin-delay-exchange" # 延迟交换机
+  retry_count: 3                            # 重试次数
+  reconnect_interval: 5                     # 重连间隔（秒）
+  heartbeat_interval: 30                    # 心跳间隔（秒）
+  connection_timeout: 10                    # 连接超时（秒）
+  enable_confirmation: true                 # 是否开启发布确认
+  prefetch_count: 10                        # 预取数量
+  prefetch_size: 0                          # 预取大小（0表示无限制）
+  default_consumer_name: "go-admin-consumer" # 默认消费者名称
+
+# ==================== JWT 配置 ====================
+jwt:
+  secret: "go-admin-secret-key-change-me"   # JWT 密钥（生产环境请修改）
+  expire_day: 7                             # 过期天数
+  issuer: "go-admin"                        # 签发者
+
+# ==================== 管理员配置 ====================
+admin:
+  login_failures: 3                         # 登录失败次数限制
+  login_failures_second: 3600               # 登录失败锁定时间（秒）
+  login_sso: true                           # 是否启用单点登录
+
+# ==================== 文件上传配置 ====================
+upload:
+  type: "local"                             # 存储类型：local, oss, qiniu, cos
+  base_url: "http://localhost:8801"         # 访问域名
+  upload_path: "/public/uploads"            # 上传路径
+  max_size: 10485760                        # 最大文件大小（10MB）
+  allowed_types:                            # 允许的 MIME 类型
+    - "image/jpeg"
+    - "image/png"
+    - "image/gif"
+    - "image/webp"
+    - "application/pdf"
+    - "text/plain"
+  allowed_extensions:                       # 允许的文件扩展名
+    - "jpg"
+    - "jpeg"
+    - "png"
+    - "gif"
+    - "webp"
+    - "pdf"
+    - "txt"
+  
+  # 阿里云 OSS 配置
+  oss:
+    endpoint: ""                            # OSS 访问域名
+    access_key_id: ""                       # AccessKey ID
+    access_key_secret: ""                   # AccessKey Secret
+    bucket_name: ""                         # Bucket 名称
+
+  # 七牛云配置  
+  qiniu:
+    region: "华东"                          # 存储区域
+    access_key: ""                          # AccessKey
+    secret_key: ""                          # SecretKey
+    bucket: ""                              # Bucket 名称
+
+  # 腾讯云 COS 配置
+  cos:
+    secret_id: ""                           # SecretId
+    secret_key: ""                          # SecretKey
+    region: "ap-guangzhou"                  # 地域
+    bucket: ""                              # Bucket 名称（格式：bucket-appid）
+

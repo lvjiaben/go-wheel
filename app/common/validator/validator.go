@@ -48,9 +48,19 @@ func ValidateStructWithConvert[T any](c *gin.Context) (*T, bool) {
 
 // ValidateStruct 通用验证函数，接受任何结构体类型
 // T 为要验证的结构体类型
+// 自动根据请求方法选择绑定方式：GET/DELETE 使用 Query，POST/PUT/PATCH 使用 JSON
 func ValidateStruct[T any](c *gin.Context) (*T, bool) {
 	var data T
-	if err := c.ShouldBindJSON(&data); err != nil {
+	var err error
+
+	// 根据请求方法选择绑定方式
+	if c.Request.Method == "GET" || c.Request.Method == "DELETE" {
+		err = c.ShouldBindQuery(&data)
+	} else {
+		err = c.ShouldBindJSON(&data)
+	}
+
+	if err != nil {
 		validationErrors, ok := err.(validator.ValidationErrors)
 		if !ok {
 			// 非验证错误，如JSON解析错误等

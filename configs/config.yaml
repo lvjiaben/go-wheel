@@ -12,13 +12,16 @@ log:
   max_backups: 7
   max_age: 30
 
-mysql:
+database:
+  driver: "mysql"       # 数据库驱动：mysql 或 postgres
   host: "127.0.0.1"
-  port: 3306
+  port: 3306            # MySQL: 3306, PostgreSQL: 5432
   user: "root"
   pass: ""
   dbname: "go-admin"
-  charset: "utf8mb4"
+  charset: "utf8mb4"    # 仅 MySQL 使用
+  sslmode: "disable"    # 仅 PostgreSQL 使用：disable, require, verify-ca, verify-full
+  timezone: "Asia/Shanghai"  # 时区设置
   max_open_conns: 100
   max_idle_conns: 20
   max_lifetime: 3600    # 连接最大生命周期（秒）
@@ -68,13 +71,6 @@ admin:
   login_failures: 3
   login_failures_second: 3600
   login_sso: true
-
-nacos:
-  host: "127.0.0.1"
-  port: 8848
-  namespace: "public"
-  dataId: "go-admin"
-  group: "DEFAULT_GROUP"
 
 # 文件上传配置
 upload:

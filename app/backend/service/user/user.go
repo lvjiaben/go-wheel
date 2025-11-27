@@ -138,10 +138,11 @@ func (s *UserService) UpdateScore(id int, operationType string, score float64, n
 	})
 }
 
-// Operate 直接操作字段
-func (s *UserService) Operate(ids []int, field string, value int8) error {
+// Operate 直接操作字段（支持 status、tid、pid）
+func (s *UserService) Operate(ids []int, field string, value int) error {
 	// 检查字段是否允许操作
-	if !datatype.Contains([]string{"status"}, field) {
+	allowedFields := []string{"status", "tid", "pid"}
+	if !datatype.Contains(allowedFields, field) {
 		return fmt.Errorf("common.server_error")
 	}
 	s.container.GetDB().Model(&commonModel.User{}).Where("id IN ?", ids).Update(field, value)

@@ -3,6 +3,7 @@ package admin
 import (
 	"fmt"
 
+	"github.com/gin-gonic/gin"
 	"github.com/lvjiaben/go-wheel/pkg/utils/datatype"
 
 	"github.com/lvjiaben/go-wheel/app/backend/model/admin"
@@ -128,7 +129,7 @@ func (s *MenuService) collectAllChildMenuIds(tx *gorm.DB, parentId int) ([]int, 
 // GetVbenRoutes 获取Vben Admin路由配置
 // menuIds: 菜单ID列表，如果为空则获取所有菜单
 // menuType: 菜单类型，如果为空或"all"则获取所有类型
-func (s *MenuService) GetVbenRoutes(menuIds []int, menuType string) ([]VbenRoute, error) {
+func (s *MenuService) GetVbenRoutes(ctx *gin.Context, menuIds []int, menuType string) ([]VbenRoute, error) {
 	// 检查容器是否为空
 	if s.container == nil {
 		return nil, fmt.Errorf("容器为空")
@@ -157,8 +158,7 @@ func (s *MenuService) GetVbenRoutes(menuIds []int, menuType string) ([]VbenRoute
 		return nil, fmt.Errorf("backend.menu.get_list_failed")
 	}
 
-	isChinese := s.container.GetContext().Value("isCn").(bool)
-
+	isChinese := ctx.Value("isCn").(bool)
 	// 构建菜单树
 	menuMap := make(map[int][]admin.Menu)
 	for _, menu := range menus {

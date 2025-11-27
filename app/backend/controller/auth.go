@@ -320,7 +320,7 @@ func (c *AuthController) Permission(ctx *gin.Context) {
 func (c *AuthController) Menus(ctx *gin.Context) {
 	adminId := ctx.GetInt("admin_id")
 	// 获取菜单（authService 内部会使用 container.GetDB()）
-	menus, err := c.authService.GetUserMenus(adminId)
+	menus, err := c.authService.GetUserMenus(ctx, adminId)
 	if err != nil {
 		http.ErrorWithI18n(ctx, "common.server_error", nil)
 		return

@@ -119,10 +119,10 @@ func (s *AuthService) recordLoginLog(username string, ip string, status int, mes
 }
 
 // GetUserMenus 获取用户菜单（Vben格式）
-func (s *AuthService) GetUserMenus(adminId int) ([]serviceAdmin.VbenRoute, error) {
+func (s *AuthService) GetUserMenus(ctx *gin.Context, adminId int) ([]serviceAdmin.VbenRoute, error) {
 	// 如果是超级管理员，返回所有菜单
 	if isSuper, _ := s.authUtils.IsAdminSuper(adminId); isSuper {
-		return s.menuService.GetVbenRoutes([]int{}, "all")
+		return s.menuService.GetVbenRoutes(ctx, []int{}, "all")
 	}
 
 	// 获取用户角色
@@ -154,5 +154,5 @@ func (s *AuthService) GetUserMenus(adminId int) ([]serviceAdmin.VbenRoute, error
 		menuIds = []int{0}
 	}
 	// 获取菜单树
-	return s.menuService.GetVbenRoutes(menuIds, "all")
+	return s.menuService.GetVbenRoutes(ctx, menuIds, "all")
 }
