@@ -1,0 +1,45 @@
+{
+  "title": "User Center",
+  "menu": {
+    "account": "Account Info",
+    "password": "Password",
+    "log": "Operation Log"
+  },
+  "account": {
+    "title": "Personal Information",
+    "username": "Username",
+    "email": "Email",
+    "avatar": "Avatar",
+    "save": "Save",
+    "saving": "Saving...",
+    "saveSuccess": "Save Success",
+    "emailPlaceholder": "Please enter email",
+    "avatarPlaceholder": "Please select avatar",
+    "usernameDisabled": "Username cannot be modified"
+  },
+  "password": {
+    "title": "Change Password",
+    "oldPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "oldPasswordPlaceholder": "Please enter current password",
+    "newPasswordPlaceholder": "Please enter new password",
+    "confirmPasswordPlaceholder": "Please enter new password again",
+    "passwordMismatch": "Passwords do not match",
+    "changing": "Changing...",
+    "changeSuccess": "Password changed successfully",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "oldPasswordRequired": "Please enter current password"
+  },
+  "log": {
+    "title": "Operation Log",
+    "id": "ID",
+    "username": "Username",
+    "ip": "IP Address",
+    "status": "Status",
+    "time": "Time",
+    "success": "Success",
+    "failed": "Failed"
+  }
+}
+

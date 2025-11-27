@@ -1,0 +1,49 @@
+{
+    "sort": "Sort",
+    "show": "Show",
+    "hide": "Hide",
+    "all":"All",
+    "createTime": "Create Time",
+    "updateTime": "Update Time",
+    "enable": "Enabled",
+    "disable": "Disabled",
+    "close": "Close",
+    "user": "User",
+    "operation":"Operation",
+    "tableSelectTip":"Please select the table data first",
+    "create":"Create",
+    "delete":"Delete",
+    "confirm":"Confirm",
+    "cancel":"Cancel",
+    "success":"Operation successful",
+    "confirmTip":"Are you sure?",
+    "confirmDeleteSelected":"Are you sure you want to delete the selected {0} item(s)?",
+    "confirmEnableSelected":"Are you sure you want to enable the selected {0} item(s)?",
+    "confirmDisableSelected":"Are you sure you want to disable the selected {0} item(s)?",
+    "fuzzySearch":"Fuzzy search",
+    "components": {
+        "arrayFormTable": {
+            "labelColumn": "Label",
+            "valueColumn": "Value",
+            "actionColumn": "Action",
+            "addRow": "Add Row"
+        },
+        "tableSelect": {
+            "placeholder": "Please select",
+            "noData": "No data",
+            "fetchError": "Failed to fetch options"
+        },
+        "richEditor": {
+            "placeholder": "Please enter content..."
+        },
+        "rangePicker": {
+            "today": "Today",
+            "yesterday": "Yesterday",
+            "last7Days": "Last 7 Days",
+            "last30Days": "Last 30 Days",
+            "thisWeek": "This Week",
+            "thisMonth": "This Month",
+            "lastMonth": "Last Month"
+        }
+    }
+}

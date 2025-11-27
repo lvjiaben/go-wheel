@@ -1,0 +1,45 @@
+{
+  "title": "个人中心",
+  "menu": {
+    "account": "账号信息",
+    "password": "密码",
+    "log": "操作日志"
+  },
+  "account": {
+    "title": "个人信息",
+    "username": "用户名",
+    "email": "邮箱",
+    "avatar": "头像",
+    "save": "保存",
+    "saving": "保存中...",
+    "saveSuccess": "保存成功",
+    "emailPlaceholder": "请输入邮箱",
+    "avatarPlaceholder": "请选择头像",
+    "usernameDisabled": "用户名不可修改"
+  },
+  "password": {
+    "title": "修改密码",
+    "oldPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认密码",
+    "oldPasswordPlaceholder": "请输入当前密码",
+    "newPasswordPlaceholder": "请输入新密码",
+    "confirmPasswordPlaceholder": "请再次输入新密码",
+    "passwordMismatch": "两次输入的密码不一致",
+    "changing": "修改中...",
+    "changeSuccess": "密码修改成功",
+    "passwordMinLength": "密码至少6位",
+    "oldPasswordRequired": "请输入当前密码"
+  },
+  "log": {
+    "title": "操作日志",
+    "id": "ID",
+    "username": "用户名",
+    "ip": "IP地址",
+    "status": "状态",
+    "time": "操作时间",
+    "success": "成功",
+    "failed": "失败"
+  }
+}
+
