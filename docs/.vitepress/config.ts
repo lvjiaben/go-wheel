@@ -4,6 +4,8 @@ export default defineConfig({
   title: 'Go-Wheel',
   description: '企业级后台管理系统文档',
   lang: 'zh-CN',
+  // 如果部署到 https://<username>.github.io/<repo>/ 需要设置 base
+  // base: '/go-wheel/',
   
   themeConfig: {
     logo: '/logo.svg',
