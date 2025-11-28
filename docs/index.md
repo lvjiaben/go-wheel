@@ -12,6 +12,12 @@ hero:
     - theme: alt
       text: 查看源码
       link: https://github.com
+    - theme: alt
+      text: 后台演示
+      link: http://120.26.94.219:8803/
+    - theme: alt
+      text: 用户端演示
+      link: http://120.26.94.219:8804/
 
 features:
   - icon: 🚀

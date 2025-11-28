@@ -146,7 +146,7 @@ pnpm dev:admin   # 管理后台
 
 ## 📖 文档
 
-详细文档请查看 [docs](./docs) 目录。
+详细文档请查看 [在线文档](https://lvjiaben.github.io/go-wheel/)。
 
 ## 📄 许可证
 

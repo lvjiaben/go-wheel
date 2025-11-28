@@ -23,6 +23,7 @@ export default defineConfig({
           items: [
             { text: '介绍', link: '/guide/introduction' },
             { text: '安装部署', link: '/guide/installation' },
+            { text: '本地运行文档', link: '/guide/local-docs' },
             { text: '常见问题', link: '/guide/faq' },
             { text: '联系我们', link: '/guide/contact' },
           ]
