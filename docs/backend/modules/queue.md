@@ -1,6 +1,6 @@
 # Queue 消息队列
 
-项目使用 RabbitMQ 作为消息队列，支持普通队列和延迟队列。
+项目使用 RabbitMQ 作为消息队列，支持普通队列和延迟队列。消费者采用 `init()` 自动注册机制，与 Cron 定时任务保持一致的注册方式。
 
 ## 配置
 
@@ -26,101 +26,150 @@ rabbitmq:
 
 ```
 app/queue/
-└── consumers/
-    ├── example.go      # 示例消费者
-    └── order.go        # 订单消费者
+├── queue.go           # 包入口（确保 init 被调用）
+└── order_consumer.go  # 订单消费者
 ```
 
 ## 发送消息
 
-### 普通消息
+### 在控制器中发送消息
 
 ```go
-// 获取消息队列
-mq := container.GetMessageQueue()
+type OrderController struct {
+    container *container.Container
+}
 
-// 发送消息
-err := mq.Publish("order.created", map[string]interface{}{
-    "order_id": 12345,
-    "user_id":  1,
-    "amount":   99.9,
-})
+func (ctrl *OrderController) Create(ctx *gin.Context) {
+    // 获取队列辅助工具
+    queueHelper := ctrl.container.GetQueueHelper()
+    if queueHelper == nil {
+        // RabbitMQ 未启用
+        return
+    }
+
+    // 发送普通消息
+    err := queueHelper.Push(ctx, "order.created", map[string]interface{}{
+        "order_id": 12345,
+        "user_id":  1,
+        "amount":   99.9,
+    })
+
+    // 发送延迟消息（30分钟后执行）
+    err = queueHelper.PushDelay(ctx, "order.timeout", map[string]interface{}{
+        "order_id": 12345,
+    }, 30*time.Minute)
+}
 ```
 
-### 延迟消息
+### 在服务层发送消息
 
 ```go
-// 获取延迟队列
-delayQ := container.GetDelayQueue()
+type OrderService struct {
+    container *container.Container
+}
 
-// 发送延迟消息（30分钟后执行）
-err := delayQ.PublishDelay("order.timeout", map[string]interface{}{
-    "order_id": 12345,
-}, 30*time.Minute)
+func (s *OrderService) CreateOrder(ctx context.Context, data *OrderData) error {
+    // 创建订单逻辑...
+
+    // 发送消息通知
+    queueHelper := s.container.GetQueueHelper()
+    if queueHelper != nil {
+        // 发送即时消息
+        queueHelper.Push(ctx, "order.created", map[string]interface{}{
+            "order_id": order.ID,
+            "user_id":  order.UserID,
+        })
+
+        // 发送延迟消息（30分钟后检查订单是否支付）
+        queueHelper.PushDelay(ctx, "order.timeout", map[string]interface{}{
+            "order_id": order.ID,
+        }, 30*time.Minute)
+    }
+
+    return nil
+}
 ```
 
 ## 创建消费者
 
-### 1. 定义消费者
+### 1. 定义消费者（使用 init 自动注册）
 
 ```go
-// app/queue/consumers/order.go
-package consumers
+// app/queue/order_consumer.go
+package queue
 
 import (
     "context"
     "encoding/json"
-    
-    "github.com/lvjiaben/go-wheel/pkg/container"
+
+    queuePkg "github.com/lvjiaben/go-wheel/pkg/queue"
+    "go.uber.org/zap"
 )
 
+// 自动注册消费者（在 init 中注册，无需手动调用）
+func init() {
+    queuePkg.Register("order.created", NewOrderConsumer)
+}
+
+// OrderConsumer 订单消费者
 type OrderConsumer struct {
-    container *container.Container
+    queuePkg.BaseConsumer
+    container queuePkg.Container
 }
 
-func NewOrderConsumer(c *container.Container) *OrderConsumer {
-    return &OrderConsumer{container: c}
+// NewOrderConsumer 创建订单消费者
+func NewOrderConsumer(c queuePkg.Container) queuePkg.Consumer {
+    return &OrderConsumer{
+        BaseConsumer: queuePkg.BaseConsumer{
+            Topic:       "order.created",
+            Description: "订单创建消费者",
+            Concurrency: 2, // 并发工作线程数
+        },
+        container: c,
+    }
 }
 
-// GetQueueName 队列名称
-func (c *OrderConsumer) GetQueueName() string {
-    return "order_queue"
-}
-
-// GetRoutingKey 路由键
-func (c *OrderConsumer) GetRoutingKey() string {
-    return "order.*"
-}
-
-// Handle 处理消息
+// Handle 处理消息（同时处理即时和延迟消息）
 func (c *OrderConsumer) Handle(ctx context.Context, body []byte) error {
     var msg map[string]interface{}
     if err := json.Unmarshal(body, &msg); err != nil {
         return err
     }
-    
+
     logger := c.container.GetLogger()
     logger.Info("处理订单消息", zap.Any("data", msg))
-    
+
     // 业务逻辑...
-    
+
     return nil
 }
 ```
 
-### 2. 注册消费者
+### 2. 自动启动（无需手动注册）
+
+消费者在 `main.go` 中通过导入包自动注册和启动：
 
 ```go
 // main.go
+package main
+
+import (
+    _ "github.com/lvjiaben/go-wheel/app/queue" // 导入队列消费者包以触发 init()
+    queuePkg "github.com/lvjiaben/go-wheel/pkg/queue"
+)
+
 func main() {
     c := container.NewContainer()
-    
-    // 注册消费者
-    orderConsumer := consumers.NewOrderConsumer(c)
-    c.GetMessageQueue().RegisterConsumer(orderConsumer)
-    
-    // 启动消费
-    c.GetMessageQueue().StartConsume()
+    defer c.Shutdown()
+
+    // 启动消息队列消费者（自动启动所有已注册的消费者）
+    if c.GetRabbitMQ() != nil {
+        if err := queuePkg.StartAllConsumers(c.AsQueueContainer(), c.GetRabbitMQ()); err != nil {
+            log.Fatalf("启动消息队列消费者失败: %v", err)
+        }
+    }
+
+    // ...
 }
 ```
 
@@ -139,18 +188,24 @@ func main() {
 
 ## 消息确认
 
+消息处理成功返回 `nil`，失败返回 `error`：
+
 ```go
-// 手动确认模式
-func (c *OrderConsumer) Handle(ctx context.Context, body []byte, ack func(), nack func()) error {
+func (c *OrderConsumer) Handle(ctx context.Context, body []byte) error {
     // 处理消息...
-    
+
     if success {
-        ack()  // 确认消息
-    } else {
-        nack() // 拒绝消息，重新入队
+        return nil  // 确认消息
     }
-    
-    return nil
+    return errors.New("处理失败") // 消息会重新入队
+}
+
+// 可选：实现 OnError 方法处理错误
+func (c *OrderConsumer) OnError(err error, message []byte) {
+    c.container.GetLogger().Error("消息处理失败",
+        zap.Error(err),
+        zap.ByteString("message", message),
+    )
 }
 ```
 

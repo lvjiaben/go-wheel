@@ -147,13 +147,81 @@ func (s *UserService) GetUserWithCache(userId int) (*User, error) {
 }
 ```
 
+## 在控制器中使用
+
+```go
+type UserController struct {
+    container *container.Container
+}
+
+func NewUserController(c *container.Container) *UserController {
+    return &UserController{container: c}
+}
+
+func (ctrl *UserController) GetUser(ctx *gin.Context) {
+    userId := ctx.Param("id")
+    cacheKey := fmt.Sprintf("user:%s", userId)
+
+    // 通过容器获取 Redis
+    redis := ctrl.container.GetRedis()
+
+    // 尝试从缓存获取
+    cached, err := redis.Get(ctx, cacheKey)
+    if err == nil {
+        http.Success(ctx, cached)
+        return
+    }
+
+    // 从数据库获取并缓存
+    // ...
+    redis.Set(ctx, cacheKey, userData, time.Hour)
+}
+```
+
+## 在服务层中使用
+
+```go
+type CacheService struct {
+    container *container.Container
+}
+
+func NewCacheService(c *container.Container) *CacheService {
+    return &CacheService{container: c}
+}
+
+func (s *CacheService) GetOrSet(ctx context.Context, key string, loader func() (interface{}, error), ttl time.Duration) (interface{}, error) {
+    redis := s.container.GetRedis()
+
+    // 尝试从缓存获取
+    cached, err := redis.Get(ctx, key)
+    if err == nil {
+        return cached, nil
+    }
+
+    // 加载数据
+    data, err := loader()
+    if err != nil {
+        return nil, err
+    }
+
+    // 写入缓存
+    jsonData, _ := json.Marshal(data)
+    redis.Set(ctx, key, jsonData, ttl)
+
+    return data, nil
+}
+```
+
 ## 使用原生客户端
 
 如需使用更多 Redis 命令，可以直接使用原生客户端：
 
 ```go
-// 获取原生客户端
-client := container.GetRedis().Client
+// 获取原生客户端（推荐方式）
+client := ctrl.container.GetRDB()
+
+// 或者通过 GetRedis().Client 获取
+client := ctrl.container.GetRedis().Client
 
 // 使用原生命令
 client.SAdd(ctx, "set:key", "member1", "member2")

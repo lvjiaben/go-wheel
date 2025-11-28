@@ -150,14 +150,70 @@ contentType := resp.Header("Content-Type")
 duration := resp.Duration()
 ```
 
-## 在 Container 中使用
+## 在控制器中使用
 
 ```go
-// 获取 HTTP 客户端
-client := container.GetHTTPClient()
+type PaymentController struct {
+    container *container.Container
+}
 
-// 发送请求
-resp, err := client.Get("https://api.example.com/users")
+func NewPaymentController(c *container.Container) *PaymentController {
+    return &PaymentController{container: c}
+}
+
+func (ctrl *PaymentController) CreatePayment(ctx *gin.Context) {
+    // 通过容器获取 HTTP 客户端
+    httpClient := ctrl.container.GetHTTPClient()
+
+    // 发送 GET 请求
+    resp, err := httpClient.Get("https://api.payment.com/status").Send()
+    if err != nil {
+        // 处理错误
+        return
+    }
+
+    // 发送 POST 请求
+    resp, err = httpClient.Post("https://api.payment.com/create").
+        SetJSON(map[string]interface{}{
+            "amount": 100,
+            "order_id": "123",
+        }).Send()
+
+    // 解析响应
+    var result map[string]interface{}
+    resp.JSON(&result)
+}
+```
+
+## 在服务层中使用
+
+```go
+type PaymentService struct {
+    container *container.Container
+}
+
+func NewPaymentService(c *container.Container) *PaymentService {
+    return &PaymentService{container: c}
+}
+
+func (s *PaymentService) NotifyThirdParty(ctx context.Context, data interface{}) error {
+    httpClient := s.container.GetHTTPClient()
+
+    resp, err := httpClient.Post("https://api.third-party.com/notify").
+        SetHeader("Authorization", "Bearer xxx").
+        SetJSON(data).
+        Send()
+
+    if err != nil {
+        return err
+    }
+
+    if resp.StatusCode() != 200 {
+        return fmt.Errorf("请求失败: %d", resp.StatusCode())
+    }
+
+    return nil
+}
 ```
 
 ## 文件上传
