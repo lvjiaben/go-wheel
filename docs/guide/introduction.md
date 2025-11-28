@@ -95,7 +95,7 @@ pnpm install
 pnpm dev:admin
 ```
 
-访问 http://localhost:5666 即可体验系统。
+访问 `http://localhost:5666` 即可体验系统。
 
 ## 下一步
 
