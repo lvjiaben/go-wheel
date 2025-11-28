@@ -249,7 +249,12 @@ CREATE TABLE `config` (
 --
 
 INSERT INTO `config` (`id`, `dir`, `key`, `name`, `tip`, `type`, `value`, `variable`, `created_at`) VALUES
-(1, '网站设置', 'site_name', '网站名称', '', 'input', '吊炸天', '', 1764256035);
+(1, '网站设置', 'site_name', '网站名称', '', 'input', '吊炸天', '', 1764256035),
+(2, '短信配置', 'sms_type', '短信服务商', '', 'radio', 'smsbao', '[\n  {\"label\": \"阿里云\", \"value\": \"aliyun\"},\n  {\"label\": \"腾讯云\", \"value\": \"tencent\"},\n  {\"label\": \"云片\", \"value\": \"yunpian\"},\n{\"label\": \"短信宝\", \"value\": \"smsbao\"}\n]', 1764329758),
+(3, '短信配置', 'sms_id', '短信配置ID', '阿里云：assessKeyId，腾讯云：APPID，云片：留空，短信宝：用户名', 'input', '', '', 1764329908),
+(4, '短信配置', 'sms_key', '短信配置KEY', '阿里云：assessKeySecret，腾讯云：APPKEY，云片：ApiKey，短信宝：用户密码', 'input', '', '', 1764329943),
+(5, '短信配置', 'sms_token', '短信配置Token', '平台Token/短信签名', 'input', '', '', 1764329986),
+(6, '短信配置', 'sms_template', '短信通用模版ID', '', 'input', '', '', 1764330007);
 
 -- --------------------------------------------------------
 
