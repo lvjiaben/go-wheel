@@ -1,0 +1,37 @@
+{
+  "title": "个人中心",
+  "menu": {
+    "mobile": "修改手机",
+    "password": "修改密码"
+  },
+  "account": {
+    "save": "保存"
+  },
+  "mobile": {
+    "title": "修改手机号",
+    "currentMobile": "当前手机号",
+    "currentMobilePlaceholder": "当前绑定的手机号",
+    "newMobile": "新手机号",
+    "newMobilePlaceholder": "请输入新手机号",
+    "newMobileRequired": "请输入新手机号",
+    "mobileFormatError": "请输入正确的手机号格式",
+    "code": "当前验证码",
+    "codePlaceholder": "请输入当前手机收到的验证码",
+    "codeRequired": "请输入6位验证码",
+    "changeSuccess": "手机号修改成功"
+  },
+  "password": {
+    "title": "修改密码",
+    "oldPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认密码",
+    "oldPasswordPlaceholder": "请输入当前密码",
+    "newPasswordPlaceholder": "请输入新密码",
+    "confirmPasswordPlaceholder": "请再次输入新密码",
+    "passwordMismatch": "两次输入的密码不一致",
+    "changeSuccess": "密码修改成功",
+    "passwordMinLength": "密码至少6位",
+    "oldPasswordRequired": "请输入当前密码"
+  }
+}
+

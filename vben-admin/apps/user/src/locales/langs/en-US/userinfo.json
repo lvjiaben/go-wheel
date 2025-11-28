@@ -1,0 +1,37 @@
+{
+  "title": "User Center",
+  "menu": {
+    "mobile": "Change Mobile",
+    "password": "Change Password"
+  },
+  "account": {
+    "save": "Save"
+  },
+  "mobile": {
+    "title": "Change Mobile Number",
+    "currentMobile": "Current Mobile",
+    "currentMobilePlaceholder": "Current bound mobile number",
+    "newMobile": "New Mobile",
+    "newMobilePlaceholder": "Please enter new mobile number",
+    "newMobileRequired": "Please enter new mobile number",
+    "mobileFormatError": "Please enter a valid mobile number",
+    "code": "Current Mobile Code",
+    "codePlaceholder": "Please enter the code sent to current mobile",
+    "codeRequired": "Please enter 6-digit verification code",
+    "changeSuccess": "Mobile number changed successfully"
+  },
+  "password": {
+    "title": "Change Password",
+    "oldPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "oldPasswordPlaceholder": "Please enter current password",
+    "newPasswordPlaceholder": "Please enter new password",
+    "confirmPasswordPlaceholder": "Please enter new password again",
+    "passwordMismatch": "Passwords do not match",
+    "changeSuccess": "Password changed successfully",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "oldPasswordRequired": "Please enter current password"
+  }
+}
+

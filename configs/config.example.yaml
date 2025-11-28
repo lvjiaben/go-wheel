@@ -95,6 +95,10 @@ admin:
   login_failures_second: 3600               # 登录失败锁定时间（秒）
   login_sso: true                           # 是否启用单点登录
 
+# ==================== 前端API配置 ====================
+api:
+  login_sso: true                           # 是否启用单点登录（同一账号只能在一处登录）
+
 # ==================== 文件上传配置 ====================
 upload:
   type: "local"                             # 存储类型：local, oss, qiniu, cos

@@ -1,0 +1,25 @@
+{
+  "auth": {
+    "login": "Login",
+    "imageCaptcha": "Image Captcha",
+    "imageCaptchaTip": "Please enter the verification code",
+    "register": "Register",
+    "codeLogin": "Code Login",
+    "qrcodeLogin": "Qr Code Login",
+    "forgetPassword": "Forget Password",
+    "smsSentSuccess": "Verification code sent successfully",
+    "registerSuccess": "Registration successful",
+    "resetPwdSuccess": "Password reset successful, please login again",
+    "resetPassword": "Reset Password",
+    "newPassword": "New Password",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "inviteCode": "Invite Code",
+    "inviteCodeTip": "Please enter invite code (optional)",
+    "forgetPasswordSubtitle": "Enter your phone number and we will send you a verification code to reset your password"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "analytics": "Analytics",
+    "workspace": "Workspace"
+  }
+}

@@ -1,0 +1,49 @@
+{
+    "sort": "排序",
+    "show": "显示",
+    "hide": "隐藏",
+    "all":"全部",
+    "createTime": "创建时间",
+    "updateTime": "更新时间",
+    "enable": "启用",
+    "disable": "禁用",
+    "close": "关闭",
+    "user": "用户",
+    "operation":"操作",
+    "tableSelectTip":"请先选择表格数据",
+    "create":"创建",
+    "delete":"删除",
+    "confirm":"确定",
+    "cancel":"取消",
+    "success":"操作成功",
+    "confirmTip":"确定要执行此操作吗？",
+    "confirmDeleteSelected":"确定要删除选中的 {0} 条数据吗？",
+    "confirmEnableSelected":"确定要启用选中的 {0} 条数据吗？",
+    "confirmDisableSelected":"确定要禁用选中的 {0} 条数据吗？",
+    "fuzzySearch":"模糊搜索",
+    "components": {
+        "arrayFormTable": {
+            "labelColumn": "标签",
+            "valueColumn": "值",
+            "actionColumn": "操作",
+            "addRow": "添加行"
+        },
+        "tableSelect": {
+            "placeholder": "请选择",
+            "noData": "暂无数据",
+            "fetchError": "获取选项失败"
+        },
+        "richEditor": {
+            "placeholder": "请输入内容..."
+        },
+        "rangePicker": {
+            "today": "今天",
+            "yesterday": "昨天",
+            "last7Days": "最近7天",
+            "last30Days": "最近30天",
+            "thisWeek": "本周",
+            "thisMonth": "本月",
+            "lastMonth": "上月"
+        }
+    }
+}

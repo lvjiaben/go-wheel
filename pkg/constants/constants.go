@@ -6,16 +6,16 @@ import "time"
 const (
 	// JWTExpireDays JWT 默认过期天数
 	JWTExpireDays = 7
-	
+
 	// LoginFailureLockDuration 登录失败锁定时长
 	LoginFailureLockDuration = 30 * time.Minute
-	
+
 	// LoginFailureRecordDuration 登录失败记录保存时长
 	LoginFailureRecordDuration = 15 * time.Minute
-	
+
 	// CaptchaTTL 验证码有效期
 	CaptchaTTL = 5 * time.Minute
-	
+
 	// GracefulShutdownTimeout 优雅关闭超时时间
 	GracefulShutdownTimeout = 5 * time.Second
 )
@@ -30,13 +30,13 @@ const (
 const (
 	// BcryptCost bcrypt 加密成本
 	BcryptCost = 10
-	
+
 	// SaltLength 盐值长度（字节）
 	SaltLength = 16
-	
+
 	// RandomPasswordLength 随机密码长度
 	RandomPasswordLength = 12
-	
+
 	// InviteCodeLength 邀请码长度
 	InviteCodeLength = 10
 )
@@ -45,7 +45,7 @@ const (
 const (
 	// DefaultMaxFileSize 默认最大文件大小（10MB）
 	DefaultMaxFileSize = 10 * 1024 * 1024
-	
+
 	// FilePermission 文件权限
 	FilePermission = 0755
 )
@@ -54,10 +54,10 @@ const (
 const (
 	// CaptchaHeight 验证码高度
 	CaptchaHeight = 80
-	
+
 	// CaptchaWidth 验证码宽度
 	CaptchaWidth = 240
-	
+
 	// CaptchaLength 验证码长度
 	CaptchaLength = 4
 )
@@ -95,14 +95,8 @@ const (
 	DefaultGracePeriod = 30 * time.Second
 )
 
-// 监控相关常量
+// 服务相关常量
 const (
-	// DefaultPrometheusCollectInterval 默认Prometheus指标收集间隔
-	DefaultPrometheusCollectInterval = 15 * time.Second
-
-	// DefaultResourceMonitorInterval 默认资源监控间隔
-	DefaultResourceMonitorInterval = 30 * time.Second
-
 	// DefaultConfigCacheInterval 默认配置缓存刷新间隔
 	DefaultConfigCacheInterval = 30 * time.Second
 )
@@ -115,4 +109,3 @@ const (
 	// DefaultRedisTimeout 默认Redis操作超时
 	DefaultRedisTimeout = 5 * time.Second
 )
-

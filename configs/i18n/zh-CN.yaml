@@ -176,3 +176,59 @@ backend:
     check_name_failed: 检查菜单名称失败
     check_enname_failed: 检查英文名称失败
     get_children_failed: 获取子菜单失败
+
+api:
+  user:
+    # 登录相关
+    login_success: 登录成功
+    login_failed: 登录失败
+    user_not_found: 用户不存在或已被禁用
+    password_incorrect: 密码错误
+    generate_token_failed: 生成令牌失败
+    # 注册相关
+    reg_success: 注册成功
+    mobile_exists: 该手机号已注册
+    generate_salt_failed: 生成盐值失败
+    hash_password_failed: 密码加密失败
+    create_user_failed: 创建用户失败
+    # 退出登录
+    logout_success: 退出成功
+    logout_failed: 退出失败
+    # 重置密码
+    reset_pwd_success: 密码重置成功
+    update_password_failed: 更新密码失败
+    # 修改手机号
+    change_mobile_success: 手机号修改成功
+    mobile_not_match: 当前手机号不匹配
+    new_mobile_exists: 新手机号已被使用
+    update_mobile_failed: 更新手机号失败
+    # 修改密码
+    change_pwd_success: 密码修改成功
+    old_password_incorrect: 原密码错误
+    # 验证码相关
+    captcha_invalid: 图形验证码错误
+    captcha_required: 请输入图形验证码
+    captcha_id_required: 验证码ID不能为空
+    captcha_code_required: 验证码不能为空
+    sms_code_required: 请输入短信验证码
+    sms_code_invalid: 短信验证码错误
+    # 参数验证
+    username_required: 请输入用户名
+    password_required: 请输入密码
+    mobile_required: 请输入手机号
+    new_password_required: 请输入新密码
+    new_mobile_required: 请输入新手机号
+    old_password_required: 请输入原密码
+    invite_code_invalid: 邀请码无效
+
+  # 短信相关
+  sms:
+    mobile_required: 请输入手机号
+    mobile_invalid: 手机号格式不正确
+    not_logged_in: 请先登录
+    user_mobile_not_found: 未找到用户手机号
+    mobile_not_registered: 该手机号未注册
+    mobile_already_registered: 该手机号已注册
+    send_too_frequent: 发送过于频繁，请稍后再试
+    send_failed: 短信发送失败
+    send_success: 短信发送成功

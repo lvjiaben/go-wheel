@@ -1,0 +1,25 @@
+{
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "imageCaptcha": "图片验证码",
+    "imageCaptchaTip": "请输入验证码",
+    "codeLogin": "验证码登录",
+    "qrcodeLogin": "二维码登录",
+    "forgetPassword": "忘记密码",
+    "smsSentSuccess": "验证码发送成功",
+    "registerSuccess": "注册成功",
+    "resetPwdSuccess": "密码重置成功，请重新登录",
+    "resetPassword": "重置密码",
+    "newPassword": "新密码",
+    "passwordMinLength": "密码至少6位",
+    "inviteCode": "邀请码",
+    "inviteCodeTip": "请输入邀请码（选填）",
+    "forgetPasswordSubtitle": "请输入您的手机号码，我们将向您发送验证码以重置密码"
+  },
+  "dashboard": {
+    "title": "概览",
+    "analytics": "分析页",
+    "workspace": "工作台"
+  }
+}

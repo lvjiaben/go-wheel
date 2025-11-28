@@ -1,12 +1,15 @@
 package container
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,6 +45,13 @@ type ComponentStatus struct {
 	Time    time.Time
 }
 
+// EmbedFS 嵌入文件系统配置
+type EmbedFS struct {
+	ConfigFS fs.FS // 配置文件
+	I18nFS   fs.FS // 多语言文件
+	ViewsFS  fs.FS // 模板文件
+}
+
 type Container struct {
 	config               *config.Config
 	db                   *gorm.DB
@@ -63,10 +73,10 @@ type Container struct {
 	cbMonitorStarted     sync.Once // 确保熔断器监控只启动一次
 	dbCBMonitorCancel    context.CancelFunc
 	redisCBMonitorCancel context.CancelFunc
-	resourceMonitor      interface{}            // 资源监控器（避免循环依赖，使用 interface{}）
 	customData           map[string]interface{} // 自定义数据存储（用于扩展）
 	activeTransactions   sync.WaitGroup         // 活跃事务计数器（用于优雅关闭）
 	goroutines           sync.WaitGroup         // Goroutine 计数器（用于等待所有 goroutine 退出）
+	embedFS              *EmbedFS               // 嵌入文件系统
 }
 
 // CircuitBreaker 熔断器
@@ -203,14 +213,23 @@ func (cb *CircuitBreaker) Check() {
 	}
 }
 
-func NewContainer() *Container {
+func NewContainer(embedFS *EmbedFS) *Container {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Container{
 		ctx:        ctx,
 		cancelFunc: cancel,
 		status:     make(map[string]ComponentStatus),
 		customData: make(map[string]interface{}),
+		embedFS:    embedFS,
 	}
+}
+
+// GetViewsFS 获取模板文件系统
+func (c *Container) GetViewsFS() fs.FS {
+	if c.embedFS != nil && c.embedFS.ViewsFS != nil {
+		return c.embedFS.ViewsFS
+	}
+	return nil
 }
 
 // Initialize 按顺序初始化组件
@@ -697,15 +716,43 @@ func (c *Container) retryWithJitter(operation func() error, maxRetries int, init
 func (c *Container) initializeConfig() error {
 	// 创建配置实例
 	v := viper.New()
-	v.SetConfigName("config")
 	v.SetConfigType("yaml")
+
+	// 优先从本地文件读取（开发环境热更新）
+	v.SetConfigName("config")
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
-
-	// 读取配置
 	if err := v.ReadInConfig(); err != nil {
-		return fmt.Errorf("读取配置文件失败: %v", err)
+		// 本地文件不存在，从嵌入的配置读取（生产环境）
+		if c.embedFS != nil && c.embedFS.ConfigFS != nil {
+			embeddedConfig, err := fs.ReadFile(c.embedFS.ConfigFS, "configs/config.yaml")
+			if err != nil {
+				return fmt.Errorf("读取嵌入配置文件失败: %v", err)
+			}
+			if err := v.ReadConfig(bytes.NewReader(embeddedConfig)); err != nil {
+				return fmt.Errorf("解析嵌入配置文件失败: %v", err)
+			}
+		} else {
+			return fmt.Errorf("读取配置文件失败: %v", err)
+		}
 	}
+
+	// 如果存在 .env 文件，读取并覆盖配置
+	// .env 格式直接使用 . 分隔: database.host=127.0.0.1
+	if _, err := os.Stat(".env"); err == nil {
+		envViper := viper.New()
+		envViper.SetConfigFile(".env")
+		envViper.SetConfigType("env")
+		if err := envViper.ReadInConfig(); err == nil {
+			for _, key := range envViper.AllKeys() {
+				v.Set(key, envViper.Get(key))
+			}
+		}
+	}
+
+	// 自动绑定环境变量（支持 APP_PORT 等格式）
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// 解析配置
 	var cfg config.Config
@@ -716,34 +763,38 @@ func (c *Container) initializeConfig() error {
 	// 设置配置
 	c.SetConfig(&cfg)
 
-	// 监听配置变化
-	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
-		c.logger.Info("配置文件发生变化",
-			zap.String("name", e.Name),
-			zap.String("op", e.Op.String()))
+	// 如果存在外部配置文件，监听配置变化
+	if _, err := os.Stat("./configs/config.yaml"); err == nil {
+		v.SetConfigName("config")
+		v.AddConfigPath("./configs")
+		v.WatchConfig()
+		v.OnConfigChange(func(e fsnotify.Event) {
+			c.logger.Info("配置文件发生变化",
+				zap.String("name", e.Name),
+				zap.String("op", e.Op.String()))
 
-		// 重新解析配置
-		var newCfg config.Config
-		if err := v.Unmarshal(&newCfg); err != nil {
-			c.logger.Error("重新解析配置文件失败", zap.Error(err))
-			return
-		}
+			// 重新解析配置
+			var newCfg config.Config
+			if err := v.Unmarshal(&newCfg); err != nil {
+				c.logger.Error("重新解析配置文件失败", zap.Error(err))
+				return
+			}
 
-		// 验证配置
-		if err := c.validateConfig(&newCfg); err != nil {
-			c.logger.Error("配置验证失败", zap.Error(err))
-			return
-		}
+			// 验证配置
+			if err := c.validateConfig(&newCfg); err != nil {
+				c.logger.Error("配置验证失败", zap.Error(err))
+				return
+			}
 
-		// 更新配置
-		c.SetConfig(&newCfg)
+			// 更新配置
+			c.SetConfig(&newCfg)
 
-		// 重新初始化受影响的组件
-		if err := c.reloadComponents(&newCfg); err != nil {
-			c.logger.Error("重新初始化组件失败", zap.Error(err))
-		}
-	})
+			// 重新初始化受影响的组件
+			if err := c.reloadComponents(&newCfg); err != nil {
+				c.logger.Error("重新初始化组件失败", zap.Error(err))
+			}
+		})
+	}
 
 	return nil
 }
@@ -1165,10 +1216,21 @@ func (c *Container) initializeI18n() error {
 	// 创建 i18n 管理器
 	i18nManager := types.NewI18nManager()
 
-	// 加载语言文件
+	// 优先从本地文件加载（开发环境热更新）
 	langDir := filepath.Join("configs", "i18n")
 	if err := i18nManager.LoadTranslations(langDir); err != nil {
-		return fmt.Errorf("加载语言文件失败: %v", err)
+		// 本地文件不存在，从嵌入的文件系统加载（生产环境）
+		if c.embedFS != nil && c.embedFS.I18nFS != nil {
+			subFS, err := fs.Sub(c.embedFS.I18nFS, "configs/i18n")
+			if err != nil {
+				return fmt.Errorf("获取i18n子目录失败: %v", err)
+			}
+			if err := i18nManager.LoadTranslationsFromFS(subFS); err != nil {
+				return fmt.Errorf("加载语言文件失败: %v", err)
+			}
+		} else {
+			return fmt.Errorf("加载语言文件失败: %v", err)
+		}
 	}
 
 	// 设置到容器
@@ -1300,20 +1362,6 @@ func (c *Container) GetTranslator() ut.Translator {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.translator
-}
-
-// SetResourceMonitor 设置资源监控器
-func (c *Container) SetResourceMonitor(monitor interface{}) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.resourceMonitor = monitor
-}
-
-// GetResourceMonitor 获取资源监控器
-func (c *Container) GetResourceMonitor() interface{} {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.resourceMonitor
 }
 
 // GetRDB 获取 Redis 客户端（线程安全）

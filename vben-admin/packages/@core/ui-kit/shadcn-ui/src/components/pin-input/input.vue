@@ -59,12 +59,15 @@ function handleComplete(e: string[]) {
 async function handleSend(e: Event) {
   try {
     e?.preventDefault();
+    await handleSendCode();
+    // 发送成功后才开始倒计时
     countdown.value = maxTime;
     startCountdown();
-    await handleSendCode();
   } catch (error) {
+    // 发送失败，重置倒计时
+    countdown.value = 0;
+    clearTimeout(timer.value);
     console.error('Failed to send code:', error);
-    // Consider emitting an error event or showing a notification
     emit('sendError', error);
   }
 }

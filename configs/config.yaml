@@ -72,6 +72,9 @@ admin:
   login_failures_second: 3600
   login_sso: true
 
+api:
+  login_sso: true  # 是否开启单点登录（同一账号只能在一处登录）
+
 # 文件上传配置
 upload:
   type: "local"        # 存储类型：local, oss, qiniu, cos

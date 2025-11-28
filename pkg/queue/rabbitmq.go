@@ -56,7 +56,7 @@ type RabbitMQManager struct {
 // NewRabbitMQManager 创建RabbitMQ管理器
 func NewRabbitMQManager(ctx context.Context, config *RabbitMQConfig, logger Logger) (*RabbitMQManager, error) {
 	mqCtx, cancel := context.WithCancel(ctx)
-	
+
 	manager := &RabbitMQManager{
 		config:     config,
 		logger:     logger,

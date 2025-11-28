@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,6 +170,44 @@ func (i *I18nManager) LoadTranslations(dir string) error {
 		var nested map[string]interface{}
 		if err := yaml.Unmarshal(data, &nested); err != nil {
 			return fmt.Errorf("解析语言文件 %s 失败: %v", file, err)
+		}
+
+		// 将嵌套的结构扁平化
+		translations := make(map[string]string)
+		flattenMap("", nested, translations)
+		i.Translations[lang] = translations
+	}
+
+	return nil
+}
+
+// LoadTranslationsFromFS 从嵌入的文件系统加载翻译
+func (i *I18nManager) LoadTranslationsFromFS(fsys fs.FS) error {
+	// 读取嵌入的文件
+	entries, err := fs.ReadDir(fsys, ".")
+	if err != nil {
+		return fmt.Errorf("读取嵌入目录失败: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		// 获取语言代码（文件名）
+		lang := entry.Name()
+		lang = lang[:len(lang)-5] // 去掉 .yaml 后缀
+
+		// 读取语言文件
+		data, err := fs.ReadFile(fsys, entry.Name())
+		if err != nil {
+			return fmt.Errorf("读取语言文件 %s 失败: %v", entry.Name(), err)
+		}
+
+		// 使用yaml解析器处理文件
+		var nested map[string]interface{}
+		if err := yaml.Unmarshal(data, &nested); err != nil {
+			return fmt.Errorf("解析语言文件 %s 失败: %v", entry.Name(), err)
 		}
 
 		// 将嵌套的结构扁平化

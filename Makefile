@@ -2,7 +2,7 @@
 # 支持开发、构建、部署等常用操作
 
 BINARY_NAME=admin
-MAIN_PATH=./main.go
+MAIN_PATH=.
 BUILD_DIR=./tmp
 
 # 默认目标
@@ -21,6 +21,8 @@ help:
 	@echo "  fmt        - 格式化代码"
 	@echo "  vet        - 代码检查"
 	@echo "  mod        - 更新go模块"
+	@echo "  build-linux    - 构建Linux AMD64版本"
+	@echo "  build-linux-arm- 构建Linux ARM64版本"
 
 ## 启动开发服务器（热更新）
 dev:
@@ -96,6 +98,20 @@ build-prod:
 	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
 	@echo "✅ 生产版本构建完成"
 
+## 构建Linux AMD64版本
+build-linux:
+	@echo "🐧 构建Linux AMD64版本..."
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags="-s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-linux $(MAIN_PATH)
+	@echo "✅ Linux版本构建完成: $(BUILD_DIR)/$(BINARY_NAME)_linux"
+
+## 构建Linux ARM64版本
+build-linux-arm:
+	@echo "🐧 构建Linux ARM64版本..."
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags="-s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(MAIN_PATH)
+	@echo "✅ Linux ARM64版本构建完成: $(BUILD_DIR)/$(BINARY_NAME)_linux_arm64"
+
 ## 检查Air配置
 check-air:
 	@echo "🔧 检查Air配置..."
@@ -106,4 +122,4 @@ check-air:
 		echo "❌ Air配置文件不存在，请运行 make dev 自动创建"; \
 	fi
 
-.PHONY: help dev air-install build run test clean install fmt vet mod build-prod check-air
+.PHONY: help dev air-install build run test clean install fmt vet mod build-prod build-linux build-linux-arm check-air

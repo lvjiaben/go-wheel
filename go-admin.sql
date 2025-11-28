@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： localhost
--- 生成日期： 2025-11-27 15:30:47
+-- 生成日期： 2025-11-28 00:48:25
 -- 服务器版本： 9.3.0
 -- PHP 版本： 8.0.30
 
@@ -50,7 +50,7 @@ CREATE TABLE `admin` (
 --
 
 INSERT INTO `admin` (`id`, `pid`, `username`, `password`, `salt`, `avatar`, `email`, `failures`, `status`, `token`, `realname`, `mobile`, `last_login_time`, `created_at`, `updated_at`) VALUES
-(1, 0, 'admin', '$2a$10$MyL8pNcmaTMn2hIP51LFiuYxCPjExscpzKANf9t8.D3Ntx5IDRSky', 'ef85ec26194b2282f12e5be27f8f5352', 'http://localhost:8801/public/uploads/2025-11-03/6d49d72d4e9364edbfdd7ddf0c1d3c3d.png', '12322@qq.com', 0, 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsImV4cCI6MTc2NDY5MzI0NiwibmJmIjoxNzY0MDg4NDQ2LCJpYXQiOjE3NjQwODg0NDZ9.QsXlzAKyFaeCal5zl6al3IZkN2e2MQSob5i3k18x-Dg', '', '', 1746333107, 1733297562, 1764088446);
+(1, 0, 'admin', '$2a$10$DiwUJcVoG1svEvhkEmZQPOnJXKYLwFPg4zp8WSsTlPl.7VF0F2GLu', 'a44b73a6c777626de536b4a26e08aec5', '/logo.png', 'admin@test.test', 0, 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsImV4cCI6MTc2NDg5NTU2NywibmJmIjoxNzY0MjkwNzY3LCJpYXQiOjE3NjQyOTA3Njd9.uBaSb3DdIuBDjHsSAG1eWgBXaXINFpvG8M9_qYgRmbc', '', '', 1746333107, 1733297562, 1764290848);
 
 -- --------------------------------------------------------
 
@@ -75,20 +75,20 @@ CREATE TABLE `admin_login_log` (
 CREATE TABLE `admin_menu` (
   `id` int UNSIGNED NOT NULL COMMENT '主键ID',
   `pid` int UNSIGNED NOT NULL DEFAULT '0' COMMENT '父级ID',
-  `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '菜单名称',
-  `enname` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '英文名称',
-  `route` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '路由地址',
-  `component` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '组件路径',
-  `path` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '路由路径',
-  `icon` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '图标',
+  `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '菜单名称',
+  `enname` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '英文名称',
+  `route` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '路由地址',
+  `component` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '组件路径',
+  `path` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '路由路径',
+  `icon` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '图标',
   `sort` int NOT NULL DEFAULT '0' COMMENT '排序',
   `visible` tinyint(1) NOT NULL DEFAULT '1' COMMENT '显示/隐藏：0=隐藏，1=显示',
   `fixed_tag` tinyint(1) NOT NULL DEFAULT '0' COMMENT '固定标签：0=不固定，1=固定',
   `show_tag` tinyint(1) NOT NULL DEFAULT '1' COMMENT '标签是否显示：0=不显示，1=显示',
-  `iframe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT 'iframe链接地址',
-  `external` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '外部连接地址',
-  `type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '类型：menu=菜单，button=按钮，iframe=内嵌页面，link=外部链接',
-  `permission` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '权限标识',
+  `iframe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT 'iframe链接地址',
+  `external` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '外部连接地址',
+  `type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '类型：menu=菜单，button=按钮，iframe=内嵌页面，link=外部链接',
+  `permission` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '权限标识',
   `created_at` int UNSIGNED NOT NULL DEFAULT '0' COMMENT '创建时间',
   `updated_at` int UNSIGNED NOT NULL DEFAULT '0' COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='菜单表';
@@ -155,8 +155,8 @@ INSERT INTO `admin_menu` (`id`, `pid`, `name`, `enname`, `route`, `component`, `
 CREATE TABLE `admin_role` (
   `id` int UNSIGNED NOT NULL COMMENT '主键ID',
   `pid` int UNSIGNED NOT NULL DEFAULT '0' COMMENT '父级ID',
-  `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '角色名称',
-  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' COMMENT '角色描述',
+  `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '角色名称',
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '角色描述',
   `is_super` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否超级管理员：0=否，1=是',
   `sort` int NOT NULL DEFAULT '50' COMMENT '排序',
   `status` tinyint(1) NOT NULL DEFAULT '1' COMMENT '状态',
@@ -249,7 +249,7 @@ CREATE TABLE `config` (
 --
 
 INSERT INTO `config` (`id`, `dir`, `key`, `name`, `tip`, `type`, `value`, `variable`, `created_at`) VALUES
-(1, '网站设置', 'site_name', '网站名称', '', 'input', '', '', 1764256035);
+(1, '网站设置', 'site_name', '网站名称', '', 'input', '吊炸天', '', 1764256035);
 
 -- --------------------------------------------------------
 
@@ -268,7 +268,7 @@ CREATE TABLE `gen_history` (
   `config` text COMMENT '完整配置（JSON）',
   `created_at` int DEFAULT NULL COMMENT '创建时间',
   `updated_at` int DEFAULT NULL COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='代码生成历史';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='代码生成历史';
 
 -- --------------------------------------------------------
 

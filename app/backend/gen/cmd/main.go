@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	// 初始化容器
-	c := container.NewContainer()
+	// 初始化容器（生成器不需要嵌入文件）
+	c := container.NewContainer(nil)
 	defer c.Shutdown()
 
 	if err := c.Initialize(); err != nil {
@@ -23,4 +23,3 @@ func main() {
 		fmt.Printf("错误：%v\n", err)
 	}
 }
-

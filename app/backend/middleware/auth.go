@@ -122,26 +122,6 @@ func (m *AuthMiddleware) JWTAuthCheck() gin.HandlerFunc {
 	}
 }
 
-// LanguageMiddleware 语言中间件
-func (m *AuthMiddleware) LanguageMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 获取语言设置，优先级：查询参数 > 请求头
-		lang := c.Query("lang")
-		if lang == "" {
-			lang = c.GetHeader("Accept-Language")
-		}
-
-		// 设置支持的语言
-		if lang == "en-US" || lang == "en" {
-			c.Set("lang", "en-US")
-		} else {
-			c.Set("lang", "zh-CN") // 默认中文
-		}
-
-		c.Next()
-	}
-}
-
 // hasPermission 检查用户是否有访问指定路径和方法的权限
 func (m *AuthMiddleware) hasPermission(username, path string) bool {
 	var count int64

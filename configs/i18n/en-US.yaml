@@ -176,3 +176,59 @@ backend:
     check_name_failed: Failed to check menu name
     check_enname_failed: Failed to check English name
     get_children_failed: Failed to get children menu
+
+api:
+  user:
+    # Login related
+    login_success: Login successful
+    login_failed: Login failed
+    user_not_found: User not found or disabled
+    password_incorrect: Incorrect password
+    generate_token_failed: Failed to generate token
+    # Register related
+    reg_success: Registration successful
+    mobile_exists: This mobile number is already registered
+    generate_salt_failed: Failed to generate salt
+    hash_password_failed: Failed to hash password
+    create_user_failed: Failed to create user
+    # Logout
+    logout_success: Logout successful
+    logout_failed: Logout failed
+    # Reset password
+    reset_pwd_success: Password reset successful
+    update_password_failed: Failed to update password
+    # Change mobile
+    change_mobile_success: Mobile number changed successfully
+    mobile_not_match: Current mobile number does not match
+    new_mobile_exists: New mobile number is already in use
+    update_mobile_failed: Failed to update mobile number
+    # Change password
+    change_pwd_success: Password changed successfully
+    old_password_incorrect: Old password is incorrect
+    # Captcha related
+    captcha_invalid: Invalid captcha
+    captcha_required: Please enter captcha
+    captcha_id_required: Captcha ID is required
+    captcha_code_required: Captcha code is required
+    sms_code_required: Please enter SMS verification code
+    sms_code_invalid: Invalid SMS verification code
+    # Parameter validation
+    username_required: Please enter username
+    password_required: Please enter password
+    mobile_required: Please enter mobile number
+    new_password_required: Please enter new password
+    new_mobile_required: Please enter new mobile number
+    old_password_required: Please enter old password
+    invite_code_invalid: Invalid invite code
+
+  # SMS related
+  sms:
+    mobile_required: Please enter mobile number
+    mobile_invalid: Invalid mobile number format
+    not_logged_in: Please login first
+    user_mobile_not_found: User mobile not found
+    mobile_not_registered: This mobile number is not registered
+    mobile_already_registered: This mobile number is already registered
+    send_too_frequent: Sending too frequently, please try again later
+    send_failed: SMS sending failed
+    send_success: SMS sent successfully

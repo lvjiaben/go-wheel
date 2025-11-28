@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/lvjiaben/go-wheel/pkg/constants"
-	"github.com/lvjiaben/go-wheel/pkg/monitor"
 	"github.com/lvjiaben/go-wheel/pkg/utils/crypto"
 
 	"github.com/lvjiaben/go-wheel/pkg/utils/http"
@@ -63,17 +62,9 @@ func (c *AuthController) Info(ctx *gin.Context) {
 
 // Login 登录
 func (c *AuthController) Login(ctx *gin.Context) {
-	// 记录登录尝试（Prometheus）
-	if metrics := c.getPrometheusMetrics(); metrics != nil {
-		metrics.RecordLoginAttempt("admin")
-	}
-
 	// 使用 ValidateLogin 进行验证
 	req, valid := validate.ValidateLogin(ctx)
 	if !valid {
-		if metrics := c.getPrometheusMetrics(); metrics != nil {
-			metrics.RecordLoginFailure("admin", "invalid_request")
-		}
 		return
 	}
 
@@ -82,9 +73,6 @@ func (c *AuthController) Login(ctx *gin.Context) {
 
 	// 检查IP登录失败次数限制
 	if blocked, remainingTime := c.checkLoginRateLimit(clientIP); blocked {
-		if metrics := c.getPrometheusMetrics(); metrics != nil {
-			metrics.RecordLoginFailure("admin", "rate_limited")
-		}
 		http.ErrorWithI18n(ctx, "backend.auth.too_many_attempts", gin.H{
 			"remaining_seconds": remainingTime,
 		})
@@ -93,9 +81,6 @@ func (c *AuthController) Login(ctx *gin.Context) {
 
 	// 验证码验证
 	if !c.captchaService.Verify(req.Captcha.ID, req.Captcha.Code) {
-		if metrics := c.getPrometheusMetrics(); metrics != nil {
-			metrics.RecordLoginFailure("admin", "invalid_captcha")
-		}
 		http.ErrorWithI18n(ctx, "backend.auth.captcha_invalid", nil)
 		return
 	}
@@ -105,9 +90,6 @@ func (c *AuthController) Login(ctx *gin.Context) {
 	if err != nil {
 		// 登录失败，记录失败次数
 		c.recordLoginFailure(clientIP)
-		if metrics := c.getPrometheusMetrics(); metrics != nil {
-			metrics.RecordLoginFailure("admin", "invalid_credentials")
-		}
 		http.ErrorWithI18n(ctx, "backend.auth.login_failed", nil)
 		return
 	}
@@ -211,17 +193,6 @@ func (c *AuthController) clearLoginFailure(ip string) {
 	if err != nil {
 		c.container.GetLogger().Error("清除登录失败记录失败: " + err.Error())
 	}
-}
-
-// getPrometheusMetrics 获取 Prometheus 指标收集器（辅助方法）
-func (c *AuthController) getPrometheusMetrics() *monitor.PrometheusMetrics {
-	// 从 container 获取（需要类型断言）
-	if metricsInterface := c.container.Get("prometheus_metrics"); metricsInterface != nil {
-		if metrics, ok := metricsInterface.(*monitor.PrometheusMetrics); ok {
-			return metrics
-		}
-	}
-	return nil
 }
 
 // Password 修改密码
