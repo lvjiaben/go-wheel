@@ -271,7 +271,7 @@ func (g *Generator) writeFile(filePath, content string) error {
 	return os.WriteFile(filePath, []byte(content), 0644)
 }
 
-// updateRoutes 更新路由文件
+// updateRoutes 更新路由文件（增量追加模式）
 func (g *Generator) updateRoutes(routeCode, workDir string) error {
 	routeFile := filepath.Join(workDir, "routes/routes.go")
 
@@ -294,8 +294,38 @@ func (g *Generator) updateRoutes(routeCode, workDir string) error {
 		return fmt.Errorf("未找到路由插入区域标记")
 	}
 
-	// 插入路由代码
-	newContent := contentStr[:startIdx+len(regionStart)] + "\n" + routeCode + "\n\t\t" + contentStr[endIdx:]
+	// 提取 region 内已有的内容
+	existingContent := contentStr[startIdx+len(regionStart) : endIdx]
+
+	// 检查是否已存在该模块的路由（使用 api.Group("/moduleName") 作为标识）
+	moduleName := g.config.ModuleName
+	camelStructName := ToCamelCase(g.config.StructName)
+
+	// 构建匹配模式：匹配已存在的模块路由块
+	pattern := fmt.Sprintf(`(?s)\n\t*//[^\n]*\n\t*%sController\s*:=\s*controller\.New%sController\(c\)\n\t*%sGroup\s*:=\s*api\.Group\("/%s"\)[^\{]*\{[^\}]*\}\n*`,
+		camelStructName, g.config.StructName, camelStructName, moduleName)
+
+	re := regexp.MustCompile(pattern)
+
+	var newContent string
+	if re.MatchString(existingContent) {
+		// 已存在该模块的路由，替换为新的路由代码
+		newRegionContent := re.ReplaceAllString(existingContent, "\n"+routeCode+"\n")
+		newContent = contentStr[:startIdx+len(regionStart)] + newRegionContent + contentStr[endIdx:]
+	} else {
+		// 不存在该模块的路由，追加到已有内容后面
+		newRegionContent := existingContent
+		// 确保内容末尾有适当的格式
+		newRegionContent = strings.TrimRight(newRegionContent, "\n\t ")
+		if newRegionContent == "" {
+			// 如果 region 内没有内容，直接添加
+			newRegionContent = "\n" + routeCode + "\n\t\t"
+		} else {
+			// 追加到已有内容后面
+			newRegionContent = newRegionContent + "\n\n" + routeCode + "\n\t\t"
+		}
+		newContent = contentStr[:startIdx+len(regionStart)] + newRegionContent + contentStr[endIdx:]
+	}
 
 	// 写回文件
 	return os.WriteFile(routeFile, []byte(newContent), 0644)
