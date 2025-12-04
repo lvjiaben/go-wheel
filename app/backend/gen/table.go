@@ -96,7 +96,7 @@ func (s *TableService) GetTableConfig(tableName string) (*GenConfig, error) {
 		StructName:       ToPascalCase(tableInfo.TableName),
 		ModuleName:       tableInfo.TableName,
 		PackageName:      tableInfo.TableName,
-		FrontendSrcPath:  "vben-admin/apps/web-antd/src",
+		FrontendSrcPath:  "vben-admin/apps/backend/src",
 		DefaultSortField: "id",
 		DefaultSortOrder: "desc",
 		Methods: MethodConfig{

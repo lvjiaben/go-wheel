@@ -75,7 +75,7 @@ func (s *GenService) GetTableConfig(tableName string) (*gen.GenConfig, error) {
 		ModuleName:      tableInfo.TableName,
 		PackageName:     tableInfo.TableName,
 		StructName:      gen.ToPascalCase(tableInfo.TableName),
-		FrontendSrcPath: "vben-admin/apps/web-antd/src", // 默认前端路径
+		FrontendSrcPath: "vben-admin/apps/backend/src", // 默认前端路径
 
 		// 默认生成所有方法
 		Methods: gen.MethodConfig{
@@ -164,7 +164,7 @@ func (s *GenService) fillConfigDefaults(config *gen.GenConfig) {
 
 	// 自动设置前端路径
 	if config.FrontendSrcPath == "" {
-		config.FrontendSrcPath = "vben-admin/apps/web-antd/src"
+		config.FrontendSrcPath = "vben-admin/apps/backend/src"
 	}
 }
 

@@ -93,7 +93,7 @@ POST /system/gen/download        # 下载生成的代码（ZIP）
 
 #### 前端页面（待实现）
 
-位置：`vben-admin/apps/web-antd/src/views/system/gen/`
+位置：`vben-admin/apps/backend/src/views/system/gen/`
 
 功能：
 - 表选择和字段配置
